@@ -31,8 +31,21 @@ serve(async (req) => {
     }
 
     console.log('Analyzing costs for user:', userId);
-    console.log('Cost data:', costData);
-    console.log('Resource data:', resourceData);
+    console.log('Cost data:', JSON.stringify(costData));
+    console.log('Resource data:', JSON.stringify(resourceData));
+
+    if (!costData?.length) {
+      console.log('No cost data provided for analysis');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No cost data available for analysis',
+          recommendations: [] 
+        }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
     // Prepare the prompt for cost analysis
     const prompt = `Analyze the following cloud resource cost data and provide optimization recommendations:
@@ -44,6 +57,7 @@ serve(async (req) => {
     2. Potential cost optimization opportunities
     3. Specific recommendations for cost reduction
     4. Priority level for each recommendation (High/Medium/Low)
+    5. Estimated potential savings in dollars
     
     Format your response as a clear, actionable list of recommendations.`;
 
@@ -57,7 +71,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         messages: [
-          { role: 'system', content: 'You are a cloud cost optimization expert. Analyze the provided data and give specific, actionable recommendations.' },
+          { role: 'system', content: 'You are a cloud cost optimization expert. Analyze the provided data and give specific, actionable recommendations with clear potential savings estimates.' },
           { role: 'user', content: prompt }
         ],
         temperature: 0.7,
@@ -71,25 +85,30 @@ serve(async (req) => {
     }
 
     const analysisResult = await response.json();
-    console.log('AI Analysis completed:', analysisResult);
+    console.log('AI Analysis completed:', JSON.stringify(analysisResult));
+
+    // Create Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Parse the AI response to extract recommendations
     const aiContent = analysisResult.choices[0].message.content;
     
-    // Create Supabase client
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     // Store multiple recommendations based on the AI analysis
     const recommendations = parseRecommendations(aiContent);
-    console.log('Parsed recommendations:', recommendations);
+    console.log('Parsed recommendations:', JSON.stringify(recommendations));
     
     // Delete existing recommendations for this user and provider
     console.log('Deleting existing recommendations');
-    await supabase
+    const { error: deleteError } = await supabase
       .from('cost_recommendations')
       .delete()
       .eq('user_id', userId)
       .eq('provider', resourceData.provider);
+
+    if (deleteError) {
+      console.error('Error deleting existing recommendations:', deleteError);
+      throw deleteError;
+    }
 
     // Insert new recommendations
     console.log('Inserting new recommendations');
@@ -104,6 +123,9 @@ serve(async (req) => {
         priority: rec.priority.toLowerCase(),
         resource_ids: resourceData.resourceIds,
         ai_analysis: analysisResult,
+        status: 'active',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })))
       .select();
 
@@ -112,17 +134,31 @@ serve(async (req) => {
       throw insertError;
     }
 
-    console.log('Successfully inserted recommendations:', insertedRecs);
+    console.log('Successfully inserted recommendations:', JSON.stringify(insertedRecs));
 
-    return new Response(JSON.stringify({ success: true, recommendations: insertedRecs }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        recommendations: insertedRecs,
+        message: 'Cost analysis completed successfully'
+      }), 
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
     console.error('Error in analyze-costs function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ 
+        error: error.message,
+        recommendations: [],
+        message: 'Failed to analyze costs'
+      }), 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   }
 });
 
@@ -141,7 +177,7 @@ function parseRecommendations(aiContent: string) {
       }
       // Start a new recommendation
       currentRec = {
-        title: line.replace(/^\d+\.\s*/, ''),
+        title: line.replace(/^\d+\.\s*/, '').trim(),
         description: '',
         priority: 'Medium', // Default priority
         savings: 0,
@@ -168,6 +204,16 @@ function parseRecommendations(aiContent: string) {
     recommendations.push(currentRec);
   }
 
-  console.log('Parsed recommendations:', recommendations);
+  // If no recommendations were parsed, create a default one
+  if (recommendations.length === 0) {
+    recommendations.push({
+      title: 'Initial Cost Analysis',
+      description: 'We are currently analyzing your cloud resource usage patterns. More specific recommendations will be provided as we gather more data.',
+      priority: 'Medium',
+      savings: 0
+    });
+  }
+
+  console.log('Parsed recommendations:', JSON.stringify(recommendations));
   return recommendations;
 }
