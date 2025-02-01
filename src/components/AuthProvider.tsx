@@ -23,7 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Check active sessions and sets the user
     async function initializeAuth() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -44,26 +43,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    // Initialize auth immediately
     initializeAuth();
 
-    // Listen for changes on auth state (sign in, sign out, etc.)
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state change:", event, session?.user ?? null);
       
-      if (mounted) {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await fetchProfile(session.user.id);
-          if (event === 'SIGNED_IN') {
-            navigate("/");
-          }
-        } else {
-          setProfile(null);
-          if (event === 'SIGNED_OUT') {
-            navigate("/auth");
-          }
+      if (!mounted) return;
+
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        await fetchProfile(session.user.id);
+        if (event === 'SIGNED_IN') {
+          navigate("/");
         }
-        setLoading(false);
+      } else {
+        setProfile(null);
+        if (event === 'SIGNED_OUT') {
+          navigate("/auth");
+        }
       }
     });
 
@@ -81,10 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       setProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message);

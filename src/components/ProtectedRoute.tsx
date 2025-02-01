@@ -15,8 +15,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, loading, navigate, location]);
 
-  // Only show loading spinner for a brief moment during initial load
-  if (loading) {
+  // If we're on the auth page and loading, show spinner
+  if (loading && location.pathname === '/auth') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -27,6 +27,15 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   // If we're on the auth page, don't require authentication
   if (location.pathname === '/auth') {
     return <>{children}</>;
+  }
+
+  // For protected routes, show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
   }
 
   // For all other routes, require authentication
