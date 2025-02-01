@@ -31,7 +31,10 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         if (provider === 'azure' && user) {
           // First, trigger a resource scan
           const response = await supabase.functions.invoke('scan-azure-resources', {
-            headers: { 'x-user-id': user.id }
+            headers: { 
+              'x-user-id': user.id,
+              'Authorization': `Bearer ${supabase.auth.getSession()}`
+            }
           });
 
           if (response.error) {

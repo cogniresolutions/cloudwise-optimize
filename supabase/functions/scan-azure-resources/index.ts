@@ -4,7 +4,6 @@ import { ResourceManagementClient } from "https://esm.sh/@azure/arm-resources@5.
 import { ComputeManagementClient } from "https://esm.sh/@azure/arm-compute@21.2.0"
 import { SqlManagementClient } from "https://esm.sh/@azure/arm-sql@9.1.0"
 import { StorageManagementClient } from "https://esm.sh/@azure/arm-storage@18.2.0"
-import { ConsumptionManagementClient } from "https://esm.sh/@azure/arm-consumption@9.1.0"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,7 +29,6 @@ async function initializeAzureClients(credentials: any) {
       computeClient: new ComputeManagementClient(credential, credentials.subscriptionId),
       sqlClient: new SqlManagementClient(credential, credentials.subscriptionId),
       storageClient: new StorageManagementClient(credential, credentials.subscriptionId),
-      consumptionClient: new ConsumptionManagementClient(credential, credentials.subscriptionId)
     };
   } catch (error) {
     console.error('Error initializing Azure clients:', error);
@@ -42,6 +40,8 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
   const { resourceClient, computeClient, sqlClient, storageClient } = clients;
   
   try {
+    console.log('Starting resource scan for user:', userId);
+    
     // Get resource groups
     const resourceGroups = [];
     for await (const group of resourceClient.resourceGroups.list()) {
@@ -62,15 +62,17 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     // Count VMs and get their status
     for (const group of resourceGroups) {
       try {
-        const vms = computeClient.virtualMachines.list(group);
+        const vms = await computeClient.virtualMachines.list(group);
         for await (const vm of vms) {
           vmCount++;
-          const instanceView = await computeClient.virtualMachines.instanceView(group, vm.name || '');
-          const isRunning = instanceView.statuses?.some(
-            status => status.code?.toLowerCase().includes('running')
-          );
-          if (isRunning) {
-            vmUsage += 100;
+          if (vm.name) {
+            const instanceView = await computeClient.virtualMachines.instanceView(group, vm.name);
+            const isRunning = instanceView.statuses?.some(
+              status => status.code?.toLowerCase().includes('running')
+            );
+            if (isRunning) {
+              vmUsage += 100;
+            }
           }
         }
       } catch (error) {
@@ -82,26 +84,13 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     // Count SQL databases
     for (const group of resourceGroups) {
       try {
-        const servers = sqlClient.servers.listByResourceGroup(group);
+        const servers = await sqlClient.servers.listByResourceGroup(group);
         for await (const server of servers) {
           if (!server.name) continue;
-          const databases = sqlClient.databases.listByServer(group, server.name);
+          const databases = await sqlClient.databases.listByServer(group, server.name);
           for await (const db of databases) {
             sqlCount++;
-            // Get actual database usage if available
-            try {
-              const metrics = await sqlClient.databases.listMetrics(
-                group,
-                server.name,
-                db.name || '',
-                { timespan: "PT1H", interval: "PT1M", metricnames: "dtu_consumption_percent" }
-              );
-              const usage = metrics.value?.[0]?.timeseries?.[0]?.data?.[0]?.average || 75;
-              sqlUsage += usage;
-            } catch (error) {
-              console.warn(`Could not get metrics for database ${db.name}:`, error);
-              sqlUsage += 75; // Fallback to assumed usage
-            }
+            sqlUsage += 75; // Default usage value
           }
         }
       } catch (error) {
@@ -110,24 +99,13 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     }
     sqlUsage = sqlCount > 0 ? Math.round(sqlUsage / sqlCount) : 0;
 
-    // Count storage accounts and get their usage
+    // Count storage accounts
     for (const group of resourceGroups) {
       try {
-        const accounts = storageClient.storageAccounts.listByResourceGroup(group);
+        const accounts = await storageClient.storageAccounts.listByResourceGroup(group);
         for await (const account of accounts) {
           storageCount++;
-          try {
-            const metrics = await storageClient.storageAccounts.listServiceMetrics(
-              group,
-              account.name || '',
-              { timespan: "PT1H", interval: "PT1M", metricnames: "UsedCapacity" }
-            );
-            const usage = metrics.value?.[0]?.timeseries?.[0]?.data?.[0]?.average || 60;
-            storageUsage += usage;
-          } catch (error) {
-            console.warn(`Could not get metrics for storage account ${account.name}:`, error);
-            storageUsage += 60; // Fallback to assumed usage
-          }
+          storageUsage += 60; // Default usage value
         }
       } catch (error) {
         console.error(`Error processing storage accounts in group ${group}:`, error);
@@ -138,7 +116,7 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     console.log('Resource counts:', { vmCount, sqlCount, storageCount });
     console.log('Usage percentages:', { vmUsage, sqlUsage, storageUsage });
 
-    // Update resource counts in database with real-time data
+    // Update resource counts in database
     const { error: countError } = await supabaseClient
       .from('azure_resource_counts')
       .upsert([
@@ -214,7 +192,7 @@ Deno.serve(async (req) => {
 
     console.log('Fetching Azure credentials for user:', userId);
 
-    // Get Azure credentials from cloud_provider_connections
+    // Get Azure credentials
     const { data: connectionData, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
