@@ -148,6 +148,41 @@ export type Database = {
           },
         ]
       }
+      azure_resource_counts: {
+        Row: {
+          count: number
+          id: string
+          last_updated_at: string | null
+          resource_type: string
+          usage_percentage: number | null
+          user_id: string | null
+        }
+        Insert: {
+          count: number
+          id?: string
+          last_updated_at?: string | null
+          resource_type: string
+          usage_percentage?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          count?: number
+          id?: string
+          last_updated_at?: string | null
+          resource_type?: string
+          usage_percentage?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "azure_resource_counts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_provider_connections: {
         Row: {
           created_at: string
