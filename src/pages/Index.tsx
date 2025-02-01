@@ -1,12 +1,47 @@
 import { Button } from "@/components/ui/button";
-import { CloudProviderTab } from "@/components/dashboard/CloudProviderTab";
+import { CloudProviderSelector } from "@/components/dashboard/CloudProviderSelector";
 import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
 const Index = () => {
-  const [activeProvider, setActiveProvider] = useState<"aws" | "azure" | "gcp">("aws");
+  const [selectedProvider, setSelectedProvider] = useState("aws");
+
+  const providerData = {
+    aws: {
+      totalCost: "$24,685",
+      totalTrend: 12,
+      projectedCost: "$32,000",
+      projectedTrend: 8,
+      potentialSavings: "$3,240",
+      savingsTrend: -15,
+      activeResources: "234",
+      resourcesTrend: 5,
+    },
+    azure: {
+      totalCost: "$18,450",
+      totalTrend: 5,
+      projectedCost: "$22,000",
+      projectedTrend: 3,
+      potentialSavings: "$2,800",
+      savingsTrend: -12,
+      activeResources: "186",
+      resourcesTrend: 2,
+    },
+    gcp: {
+      totalCost: "$15,720",
+      totalTrend: 7,
+      projectedCost: "$19,500",
+      projectedTrend: 6,
+      potentialSavings: "$1,950",
+      savingsTrend: -8,
+      activeResources: "142",
+      resourcesTrend: 4,
+    },
+  };
+
+  const currentData = providerData[selectedProvider as keyof typeof providerData];
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -24,52 +59,36 @@ const Index = () => {
           </Button>
         </div>
 
-        {/* Cloud Provider Tabs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <CloudProviderTab
-            provider="aws"
-            isConnected={true}
-            onClick={() => setActiveProvider("aws")}
-            isActive={activeProvider === "aws"}
-          />
-          <CloudProviderTab
-            provider="azure"
-            isConnected={false}
-            onClick={() => setActiveProvider("azure")}
-            isActive={activeProvider === "azure"}
-          />
-          <CloudProviderTab
-            provider="gcp"
-            isConnected={false}
-            onClick={() => setActiveProvider("gcp")}
-            isActive={activeProvider === "gcp"}
-          />
-        </div>
+        {/* Cloud Provider Selector */}
+        <CloudProviderSelector
+          selectedProvider={selectedProvider}
+          onSelect={setSelectedProvider}
+        />
 
         {/* Cost Overview Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <CostCard
             title="Total Cost (MTD)"
-            amount="$24,685"
-            trend={12}
+            amount={currentData.totalCost}
+            trend={currentData.totalTrend}
             trendLabel="from last month"
           />
           <CostCard
             title="Projected Cost"
-            amount="$32,000"
-            trend={8}
+            amount={currentData.projectedCost}
+            trend={currentData.projectedTrend}
             trendLabel="vs budget"
           />
           <CostCard
             title="Potential Savings"
-            amount="$3,240"
-            trend={-15}
+            amount={currentData.potentialSavings}
+            trend={currentData.savingsTrend}
             trendLabel="if optimized"
           />
           <CostCard
             title="Active Resources"
-            amount="234"
-            trend={5}
+            amount={currentData.activeResources}
+            trend={currentData.resourcesTrend}
             trendLabel="new this month"
           />
         </div>
