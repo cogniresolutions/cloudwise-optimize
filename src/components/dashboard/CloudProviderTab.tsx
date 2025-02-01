@@ -1,14 +1,21 @@
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudCog } from "lucide-react";
+import { Cloud, CloudCog, AlertCircle } from "lucide-react";
 
 interface CloudProviderTabProps {
   provider: "aws" | "azure" | "gcp";
   isConnected: boolean;
   onClick: () => void;
   isActive: boolean;
+  connectionStatus?: "connected" | "error" | "configuring" | "not_connected";
 }
 
-export function CloudProviderTab({ provider, isConnected, onClick, isActive }: CloudProviderTabProps) {
+export function CloudProviderTab({ 
+  provider, 
+  isConnected, 
+  onClick, 
+  isActive,
+  connectionStatus = "not_connected" 
+}: CloudProviderTabProps) {
   const getProviderDetails = () => {
     switch (provider) {
       case "aws":
@@ -20,7 +27,38 @@ export function CloudProviderTab({ provider, isConnected, onClick, isActive }: C
     }
   };
 
+  const getStatusDetails = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return { 
+          text: "Connected", 
+          color: "text-green-500",
+          icon: Cloud 
+        };
+      case "error":
+        return { 
+          text: "Connection Error", 
+          color: "text-red-500",
+          icon: AlertCircle 
+        };
+      case "configuring":
+        return { 
+          text: "Configuring...", 
+          color: "text-blue-500",
+          icon: CloudCog 
+        };
+      default:
+        return { 
+          text: "Not Connected", 
+          color: "text-gray-400",
+          icon: CloudCog 
+        };
+    }
+  };
+
   const details = getProviderDetails();
+  const status = getStatusDetails();
+  const StatusIcon = status.icon;
 
   return (
     <Card
@@ -31,17 +69,13 @@ export function CloudProviderTab({ provider, isConnected, onClick, isActive }: C
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          {isConnected ? (
-            <Cloud className={`h-5 w-5 ${details.color}`} />
-          ) : (
-            <CloudCog className="h-5 w-5 text-gray-400" />
-          )}
+          <StatusIcon className={`h-5 w-5 ${isConnected ? details.color : "text-gray-400"}`} />
           <span className={isConnected ? details.color : "text-gray-400"}>
             {details.name}
           </span>
         </div>
-        <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
-          {isConnected ? "Connected" : "Not Connected"}
+        <span className={`text-sm ${status.color}`}>
+          {status.text}
         </span>
       </div>
     </Card>

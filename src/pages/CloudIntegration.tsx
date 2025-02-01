@@ -4,14 +4,16 @@ import { CloudProviderSelector } from "@/components/dashboard/CloudProviderSelec
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { AzureConnectionWizard } from "@/components/dashboard/AzureConnectionWizard";
 
 export default function CloudIntegration() {
   const [selectedProvider, setSelectedProvider] = useState<string>("aws");
   const [isConnecting, setIsConnecting] = useState(false);
+  const [showAzureWizard, setShowAzureWizard] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleConnect = async () => {
+  const handleConnect = async (credentials?: any) => {
     setIsConnecting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -31,7 +33,7 @@ export default function CloudIntegration() {
           {
             user_id: user.id,
             provider: selectedProvider,
-            credentials: {}, // This would be populated with actual credentials in production
+            credentials: credentials || {}, // Use provided credentials or empty object
             is_active: true
           }
         ]);
@@ -55,6 +57,14 @@ export default function CloudIntegration() {
     }
   };
 
+  const handleProviderConnect = () => {
+    if (selectedProvider === "azure") {
+      setShowAzureWizard(true);
+    } else {
+      handleConnect();
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <h1 className="text-2xl font-bold mb-6">Connect Cloud Provider</h1>
@@ -65,13 +75,19 @@ export default function CloudIntegration() {
         />
         <div className="flex justify-end">
           <Button
-            onClick={handleConnect}
+            onClick={handleProviderConnect}
             disabled={isConnecting}
           >
             {isConnecting ? "Connecting..." : "Connect Provider"}
           </Button>
         </div>
       </div>
+
+      <AzureConnectionWizard
+        isOpen={showAzureWizard}
+        onClose={() => setShowAzureWizard(false)}
+        onConnect={handleConnect}
+      />
     </div>
   );
 }
