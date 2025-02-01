@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { CloudProviderSelector } from "@/components/dashboard/CloudProviderSelector";
+import { CloudConnectionSheet } from "@/components/dashboard/CloudConnectionSheet";
 import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
 import { CostRecommendations } from "@/components/dashboard/CostRecommendations";
@@ -9,6 +10,7 @@ import { useState } from "react";
 
 const Index = () => {
   const [selectedProvider, setSelectedProvider] = useState("aws");
+  const [showConnectionSheet, setShowConnectionSheet] = useState(false);
 
   const providerData = {
     aws: {
@@ -56,7 +58,7 @@ const Index = () => {
               Monitor and optimize your multi-cloud spending
             </p>
           </div>
-          <Button>
+          <Button onClick={() => setShowConnectionSheet(true)}>
             <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
           </Button>
         </div>
@@ -65,6 +67,13 @@ const Index = () => {
         <CloudProviderSelector
           selectedProvider={selectedProvider}
           onSelect={setSelectedProvider}
+        />
+
+        {/* Cloud Connection Sheet */}
+        <CloudConnectionSheet
+          isOpen={showConnectionSheet}
+          onOpenChange={setShowConnectionSheet}
+          onProviderSelect={setSelectedProvider}
         />
 
         {/* Cost Overview Cards */}
