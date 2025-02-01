@@ -29,6 +29,16 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         console.log("Fetching resource counts for provider:", provider, "user:", user?.id);
         
         if (provider === 'azure' && user) {
+          // First, trigger a resource scan
+          const response = await supabase.functions.invoke('scan-azure-resources', {
+            headers: { 'x-user-id': user.id }
+          });
+
+          if (response.error) {
+            throw new Error(response.error.message);
+          }
+
+          // Then fetch the latest data
           const { data, error } = await supabase
             .from('azure_resource_counts')
             .select('*')
@@ -59,7 +69,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
             setResources(formattedResources);
           } else {
-            // Set default resources if no data
             setResources([
               { name: 'Virtual Machines', count: 0, usage: 0, icon: Server },
               { name: 'SQL Databases', count: 0, usage: 0, icon: Database },
@@ -90,38 +99,40 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           description: error.message,
           variant: "destructive",
         });
-        // Set empty resources on error
         setResources([]);
       } finally {
         setIsLoading(false);
       }
     };
 
+    // Initial fetch
     fetchResourceCounts();
 
-    // Subscribe to real-time updates for Azure resources
-    if (provider === 'azure' && user) {
-      const channel = supabase
-        .channel('azure-resources')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'azure_resource_counts',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('Received real-time update:', payload);
-            fetchResourceCounts();
-          }
-        )
-        .subscribe();
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('azure-resources')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'azure_resource_counts',
+          filter: `user_id=eq.${user?.id}`
+        },
+        (payload) => {
+          console.log('Received real-time update:', payload);
+          fetchResourceCounts();
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    // Refresh data every 5 minutes
+    const intervalId = setInterval(fetchResourceCounts, 5 * 60 * 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
   }, [provider, user, toast]);
 
   if (isLoading) {
