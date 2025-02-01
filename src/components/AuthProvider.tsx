@@ -44,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
-    let authListener: any = null;
 
     const initSession = async () => {
       try {
@@ -79,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initSession();
 
-    authListener = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Setup auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       console.log("Auth state change:", event, session?.user?.email ?? "no user");
@@ -104,8 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       console.log("Cleaning up auth provider");
       mounted = false;
-      if (authListener) {
-        authListener.subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
       }
     };
   }, [navigate, fetchProfile]);
