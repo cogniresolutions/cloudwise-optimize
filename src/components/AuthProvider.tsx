@@ -37,16 +37,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Get the initial session synchronously from localStorage
-    const initialSession = supabase.auth.getSession();
-    if (initialSession) {
-      const user = supabase.auth.user();
-      if (user) {
-        setUser(user);
-        fetchProfile(user.id);
+    // Get initial session
+    const initSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error("Error getting initial session:", error);
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    initSession();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
