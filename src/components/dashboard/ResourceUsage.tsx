@@ -3,6 +3,7 @@ import { Server, Database, HardDrive, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/AuthProvider";
 
 interface ResourceType {
   name: string;
@@ -19,18 +20,19 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Initial fetch of resource counts
     const fetchResourceCounts = async () => {
       try {
         setIsLoading(true);
-        console.log("Fetching resource counts for provider:", provider);
+        console.log("Fetching resource counts for provider:", provider, "user:", user?.id);
         
-        if (provider === 'azure') {
+        if (provider === 'azure' && user) {
           const { data, error } = await supabase
             .from('azure_resource_counts')
-            .select('*');
+            .select('*')
+            .eq('user_id', user.id);
 
           console.log("Azure resource counts response:", { data, error });
 
@@ -45,10 +47,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
               'Storage Accounts': { name: 'Storage Accounts', count: 0, usage: 52, icon: HardDrive },
             };
 
+            // Update counts from database
             data.forEach(item => {
               if (resourceMap[item.resource_type]) {
                 resourceMap[item.resource_type].count = item.count;
-                if (item.usage_percentage) {
+                if (item.usage_percentage !== null) {
                   resourceMap[item.resource_type].usage = item.usage_percentage;
                 }
               }
@@ -73,11 +76,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
           setResources(defaultData[provider] || []);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching resource counts:', error);
         toast({
           title: "Error fetching resources",
-          description: "Failed to load resource usage data. Please try again.",
+          description: error.message,
           variant: "destructive",
         });
       } finally {
@@ -88,7 +91,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     fetchResourceCounts();
 
     // Subscribe to real-time updates for Azure resources
-    if (provider === 'azure') {
+    if (provider === 'azure' && user) {
       const channel = supabase
         .channel('azure-resources')
         .on(
@@ -96,7 +99,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           {
             event: '*',
             schema: 'public',
-            table: 'azure_resource_counts'
+            table: 'azure_resource_counts',
+            filter: `user_id=eq.${user.id}`
           },
           (payload) => {
             console.log('Received real-time update:', payload);
@@ -109,11 +113,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         supabase.removeChannel(channel);
       };
     }
-  }, [provider, toast]);
+  }, [provider, user, toast]);
 
   if (isLoading) {
     return (
-      <Card className="col-span-4 animate-fade-in">
+      <Card className="col-span-4">
         <CardHeader>
           <CardTitle>Resource Usage</CardTitle>
         </CardHeader>
@@ -125,7 +129,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   }
 
   return (
-    <Card className="col-span-4 animate-fade-in">
+    <Card className="col-span-4">
       <CardHeader>
         <CardTitle>Resource Usage</CardTitle>
       </CardHeader>
