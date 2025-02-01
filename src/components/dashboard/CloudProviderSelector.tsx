@@ -40,7 +40,29 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
       }
     };
 
+    // Initial fetch
     fetchConnections();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('cloud-connections')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cloud_provider_connections',
+        },
+        () => {
+          // Refresh connection statuses when changes occur
+          fetchConnections();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const providers = ["aws", "azure", "gcp"] as const;
@@ -55,6 +77,7 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
             isConnected={connectionStatus[provider]}
             isActive={selectedProvider === provider}
             onClick={() => onSelect(provider)}
+            connectionStatus={connectionStatus[provider] ? "connected" : "not_connected"}
           />
         ))}
       </CardContent>
