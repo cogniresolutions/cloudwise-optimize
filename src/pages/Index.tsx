@@ -4,30 +4,46 @@ import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
 import { CostRecommendations } from "@/components/dashboard/CostRecommendations";
 import { ResourceUsage } from "@/components/dashboard/ResourceUsage";
-import { Plus, LogOut, Cloud } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [selectedProvider, setSelectedProvider] = useState("aws");
-  const navigate = useNavigate();
-  const { toast } = useToast();
 
-  const handleSignOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      navigate("/auth");
-    } catch (error: any) {
-      toast({
-        title: "Error signing out",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+  const providerData = {
+    aws: {
+      totalCost: "$24,685",
+      totalTrend: 12,
+      projectedCost: "$32,000",
+      projectedTrend: 8,
+      potentialSavings: "$3,240",
+      savingsTrend: -15,
+      activeResources: "234",
+      resourcesTrend: 5,
+    },
+    azure: {
+      totalCost: "$18,450",
+      totalTrend: 5,
+      projectedCost: "$22,000",
+      projectedTrend: 3,
+      potentialSavings: "$2,800",
+      savingsTrend: -12,
+      activeResources: "186",
+      resourcesTrend: 2,
+    },
+    gcp: {
+      totalCost: "$15,720",
+      totalTrend: 7,
+      projectedCost: "$19,500",
+      projectedTrend: 6,
+      potentialSavings: "$1,950",
+      savingsTrend: -8,
+      activeResources: "142",
+      resourcesTrend: 4,
+    },
   };
+
+  const currentData = providerData[selectedProvider as keyof typeof providerData];
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -40,14 +56,9 @@ const Index = () => {
               Monitor and optimize your multi-cloud spending
             </p>
           </div>
-          <div className="flex gap-4">
-            <Button onClick={() => navigate("/cloud")}>
-              <Cloud className="mr-2 h-4 w-4" /> Cloud Integration
-            </Button>
-            <Button variant="outline" onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" /> Sign Out
-            </Button>
-          </div>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
+          </Button>
         </div>
 
         {/* Cloud Provider Selector */}
@@ -60,26 +71,26 @@ const Index = () => {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <CostCard
             title="Total Cost (MTD)"
-            amount={providerData[selectedProvider].totalCost}
-            trend={providerData[selectedProvider].totalTrend}
+            amount={currentData.totalCost}
+            trend={currentData.totalTrend}
             trendLabel="from last month"
           />
           <CostCard
             title="Projected Cost"
-            amount={providerData[selectedProvider].projectedCost}
-            trend={providerData[selectedProvider].projectedTrend}
+            amount={currentData.projectedCost}
+            trend={currentData.projectedTrend}
             trendLabel="vs budget"
           />
           <CostCard
             title="Potential Savings"
-            amount={providerData[selectedProvider].potentialSavings}
-            trend={providerData[selectedProvider].savingsTrend}
+            amount={currentData.potentialSavings}
+            trend={currentData.savingsTrend}
             trendLabel="if optimized"
           />
           <CostCard
             title="Active Resources"
-            amount={providerData[selectedProvider].activeResources}
-            trend={providerData[selectedProvider].resourcesTrend}
+            amount={currentData.activeResources}
+            trend={currentData.resourcesTrend}
             trendLabel="new this month"
           />
         </div>
@@ -95,39 +106,6 @@ const Index = () => {
       </div>
     </div>
   );
-};
-
-const providerData = {
-  aws: {
-    totalCost: "$24,685",
-    totalTrend: 12,
-    projectedCost: "$32,000",
-    projectedTrend: 8,
-    potentialSavings: "$3,240",
-    savingsTrend: -15,
-    activeResources: "234",
-    resourcesTrend: 5,
-  },
-  azure: {
-    totalCost: "$18,450",
-    totalTrend: 5,
-    projectedCost: "$22,000",
-    projectedTrend: 3,
-    potentialSavings: "$2,800",
-    savingsTrend: -12,
-    activeResources: "186",
-    resourcesTrend: 2,
-  },
-  gcp: {
-    totalCost: "$15,720",
-    totalTrend: 7,
-    projectedCost: "$19,500",
-    projectedTrend: 6,
-    potentialSavings: "$1,950",
-    savingsTrend: -8,
-    activeResources: "142",
-    resourcesTrend: 4,
-  },
 };
 
 export default Index;

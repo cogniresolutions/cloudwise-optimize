@@ -1,3 +1,0 @@
-project_id = "kzubwatryfgonzuzldej"
-[db.replication]
-tables = ["azure_resource_counts"]

@@ -1,26 +1,14 @@
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudCog, AlertCircle, Power } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
-type ConnectionStatus = "connected" | "error" | "configuring" | "not_connected";
+import { Cloud, CloudCog } from "lucide-react";
 
 interface CloudProviderTabProps {
   provider: "aws" | "azure" | "gcp";
   isConnected: boolean;
   onClick: () => void;
   isActive: boolean;
-  connectionStatus: ConnectionStatus;
-  onDisconnect?: () => void;
 }
 
-export function CloudProviderTab({ 
-  provider, 
-  isConnected, 
-  onClick, 
-  isActive,
-  connectionStatus,
-  onDisconnect
-}: CloudProviderTabProps) {
+export function CloudProviderTab({ provider, isConnected, onClick, isActive }: CloudProviderTabProps) {
   const getProviderDetails = () => {
     switch (provider) {
       case "aws":
@@ -32,38 +20,7 @@ export function CloudProviderTab({
     }
   };
 
-  const getStatusDetails = () => {
-    switch (connectionStatus) {
-      case "connected":
-        return { 
-          text: "Connected", 
-          color: "text-green-500",
-          icon: Cloud 
-        };
-      case "error":
-        return { 
-          text: "Connection Error", 
-          color: "text-red-500",
-          icon: AlertCircle 
-        };
-      case "configuring":
-        return { 
-          text: "Configuring...", 
-          color: "text-blue-500",
-          icon: CloudCog 
-        };
-      default:
-        return { 
-          text: "Not Connected", 
-          color: "text-gray-400",
-          icon: CloudCog 
-        };
-    }
-  };
-
   const details = getProviderDetails();
-  const status = getStatusDetails();
-  const StatusIcon = status.icon;
 
   return (
     <Card
@@ -74,29 +31,18 @@ export function CloudProviderTab({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <StatusIcon className={`h-5 w-5 ${isConnected ? details.color : "text-gray-400"}`} />
+          {isConnected ? (
+            <Cloud className={`h-5 w-5 ${details.color}`} />
+          ) : (
+            <CloudCog className="h-5 w-5 text-gray-400" />
+          )}
           <span className={isConnected ? details.color : "text-gray-400"}>
             {details.name}
           </span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-sm ${status.color}`}>
-            {status.text}
-          </span>
-          {connectionStatus === "connected" && onDisconnect && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDisconnect();
-              }}
-            >
-              <Power className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
+        <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
+          {isConnected ? "Connected" : "Not Connected"}
+        </span>
       </div>
     </Card>
   );

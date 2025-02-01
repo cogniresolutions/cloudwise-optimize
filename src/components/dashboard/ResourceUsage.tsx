@@ -1,9 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Database, HardDrive, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/components/AuthProvider";
+import { Server, Database, HardDrive } from "lucide-react";
 
 interface ResourceType {
   name: string;
@@ -17,142 +13,28 @@ interface ResourceUsageProps {
 }
 
 export function ResourceUsage({ provider }: ResourceUsageProps) {
-  const [resources, setResources] = useState<ResourceType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
-  const { user } = useAuth();
+  const resourceData: { [key: string]: ResourceType[] } = {
+    aws: [
+      { name: "EC2 Instances", count: 45, usage: 65, icon: Server },
+      { name: "RDS Databases", count: 12, usage: 78, icon: Database },
+      { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
+    ],
+    azure: [
+      { name: "Virtual Machines", count: 38, usage: 72, icon: Server },
+      { name: "SQL Databases", count: 8, usage: 85, icon: Database },
+      { name: "Storage Accounts", count: 56, usage: 52, icon: HardDrive },
+    ],
+    gcp: [
+      { name: "Compute Instances", count: 29, usage: 58, icon: Server },
+      { name: "Cloud SQL", count: 6, usage: 81, icon: Database },
+      { name: "Persistent Disks", count: 42, usage: 48, icon: HardDrive },
+    ],
+  };
 
-  useEffect(() => {
-    const fetchResourceCounts = async () => {
-      try {
-        setIsLoading(true);
-        console.log("Fetching resource counts for provider:", provider, "user:", user?.id);
-        
-        if (provider === 'azure' && user) {
-          // First, trigger a resource scan
-          const response = await supabase.functions.invoke('scan-azure-resources', {
-            headers: { 
-              'x-user-id': user.id,
-              'Authorization': `Bearer ${supabase.auth.getSession()}`
-            }
-          });
-
-          if (response.error) {
-            throw new Error(response.error.message);
-          }
-
-          // Then fetch the latest data
-          const { data, error } = await supabase
-            .from('azure_resource_counts')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('resource_type');
-
-          console.log("Azure resource counts response:", { data, error });
-
-          if (error) {
-            throw error;
-          }
-
-          if (data && data.length > 0) {
-            const formattedResources = data.map(item => {
-              const iconMap: { [key: string]: React.ElementType } = {
-                'Virtual Machines': Server,
-                'SQL Databases': Database,
-                'Storage Accounts': HardDrive,
-              };
-
-              return {
-                name: item.resource_type,
-                count: item.count || 0,
-                usage: item.usage_percentage || 0,
-                icon: iconMap[item.resource_type] || Server
-              };
-            });
-
-            setResources(formattedResources);
-          } else {
-            setResources([
-              { name: 'Virtual Machines', count: 0, usage: 0, icon: Server },
-              { name: 'SQL Databases', count: 0, usage: 0, icon: Database },
-              { name: 'Storage Accounts', count: 0, usage: 0, icon: HardDrive },
-            ]);
-          }
-        } else {
-          // Default data for other providers
-          const defaultData: { [key: string]: ResourceType[] } = {
-            aws: [
-              { name: "EC2 Instances", count: 45, usage: 65, icon: Server },
-              { name: "RDS Databases", count: 12, usage: 78, icon: Database },
-              { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
-            ],
-            gcp: [
-              { name: "Compute Instances", count: 29, usage: 58, icon: Server },
-              { name: "Cloud SQL", count: 6, usage: 81, icon: Database },
-              { name: "Persistent Disks", count: 42, usage: 48, icon: HardDrive },
-            ],
-          };
-
-          setResources(defaultData[provider] || []);
-        }
-      } catch (error: any) {
-        console.error('Error fetching resource counts:', error);
-        toast({
-          title: "Error fetching resources",
-          description: error.message,
-          variant: "destructive",
-        });
-        setResources([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // Initial fetch
-    fetchResourceCounts();
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('azure-resources')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'azure_resource_counts',
-          filter: `user_id=eq.${user?.id}`
-        },
-        (payload) => {
-          console.log('Received real-time update:', payload);
-          fetchResourceCounts();
-        }
-      )
-      .subscribe();
-
-    // Refresh data every 5 minutes
-    const intervalId = setInterval(fetchResourceCounts, 5 * 60 * 1000);
-
-    return () => {
-      clearInterval(intervalId);
-      supabase.removeChannel(channel);
-    };
-  }, [provider, user, toast]);
-
-  if (isLoading) {
-    return (
-      <Card className="col-span-4">
-        <CardHeader>
-          <CardTitle>Resource Usage</CardTitle>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const resources = resourceData[provider] || resourceData.aws;
 
   return (
-    <Card className="col-span-4">
+    <Card className="col-span-4 animate-fade-in">
       <CardHeader>
         <CardTitle>Resource Usage</CardTitle>
       </CardHeader>
