@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AzureConnectionWizard } from "@/components/dashboard/AzureConnectionWizard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Steps } from "@/components/ui/steps";
+import { ArrowRight, Cloud, CloudCog } from "lucide-react";
 
 export default function CloudIntegration() {
   const [selectedProvider, setSelectedProvider] = useState<string>("aws");
@@ -33,7 +36,7 @@ export default function CloudIntegration() {
           {
             user_id: user.id,
             provider: selectedProvider,
-            credentials: credentials || {}, // Use provided credentials or empty object
+            credentials: credentials || {}, 
             is_active: true
           }
         ]);
@@ -54,6 +57,7 @@ export default function CloudIntegration() {
       });
     } finally {
       setIsConnecting(false);
+      setShowAzureWizard(false);
     }
   };
 
@@ -65,9 +69,37 @@ export default function CloudIntegration() {
     }
   };
 
+  const steps = [
+    {
+      title: "Select Azure",
+      description: "Click on the Azure card in the provider selection",
+      icon: Cloud,
+    },
+    {
+      title: "Connect Provider",
+      description: "Click the 'Connect Provider' button below",
+      icon: ArrowRight,
+    },
+    {
+      title: "Complete Wizard",
+      description: "Fill in your Azure credentials in the wizard",
+      icon: CloudCog,
+    },
+  ];
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <h1 className="text-2xl font-bold mb-6">Connect Cloud Provider</h1>
+      
+      {selectedProvider === "azure" && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h2 className="text-lg font-semibold mb-4">Azure Connection Steps</h2>
+            <Steps steps={steps} activeStep={showAzureWizard ? 3 : selectedProvider === "azure" ? 2 : 1} />
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-6">
         <CloudProviderSelector
           selectedProvider={selectedProvider}
