@@ -1,12 +1,14 @@
 import { Card } from "@/components/ui/card";
 import { Cloud, CloudCog, AlertCircle } from "lucide-react";
 
+type ConnectionStatus = "connected" | "error" | "configuring" | "not_connected";
+
 interface CloudProviderTabProps {
   provider: "aws" | "azure" | "gcp";
   isConnected: boolean;
   onClick: () => void;
   isActive: boolean;
-  connectionStatus?: "connected" | "error" | "configuring" | "not_connected";
+  connectionStatus: ConnectionStatus;
 }
 
 export function CloudProviderTab({ 
@@ -14,7 +16,7 @@ export function CloudProviderTab({
   isConnected, 
   onClick, 
   isActive,
-  connectionStatus = "not_connected" 
+  connectionStatus 
 }: CloudProviderTabProps) {
   const getProviderDetails = () => {
     switch (provider) {

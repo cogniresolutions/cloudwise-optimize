@@ -8,11 +8,13 @@ interface CloudProviderSelectorProps {
   onSelect: (provider: string) => void;
 }
 
+type ConnectionStatus = "connected" | "error" | "configuring" | "not_connected";
+
 export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProviderSelectorProps) {
-  const [connectionStatus, setConnectionStatus] = useState({
-    aws: "not_connected" as const,
-    azure: "not_connected" as const,
-    gcp: "not_connected" as const,
+  const [connectionStatus, setConnectionStatus] = useState<Record<string, ConnectionStatus>>({
+    aws: "not_connected",
+    azure: "not_connected",
+    gcp: "not_connected",
   });
 
   useEffect(() => {
@@ -25,14 +27,14 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
           .eq('user_id', user.id);
 
         if (data) {
-          const status = {
-            aws: "not_connected" as const,
-            azure: "not_connected" as const,
-            gcp: "not_connected" as const,
+          const status: Record<string, ConnectionStatus> = {
+            aws: "not_connected",
+            azure: "not_connected",
+            gcp: "not_connected",
           };
           data.forEach(conn => {
             if (conn.is_active) {
-              status[conn.provider as keyof typeof status] = "connected" as const;
+              status[conn.provider] = "connected";
             }
           });
           setConnectionStatus(status);
