@@ -25,9 +25,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initializeAuth() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log("Initial session check:", session?.user ?? null);
+        // Get initial session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
+        if (sessionError) {
+          console.error("Error getting session:", sessionError);
+          if (mounted) {
+            setLoading(false);
+          }
+          return;
+        }
+
         if (mounted) {
           setUser(session?.user ?? null);
           if (session?.user) {
@@ -52,14 +60,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (!mounted) return;
 
-      setUser(session?.user ?? null);
-      
       if (session?.user) {
+        setUser(session.user);
         await fetchProfile(session.user.id);
         if (event === 'SIGNED_IN') {
           navigate("/");
         }
       } else {
+        setUser(null);
         setProfile(null);
         if (event === 'SIGNED_OUT') {
           navigate("/auth");
