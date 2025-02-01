@@ -1136,7 +1136,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      cloud_provider: "aws" | "gcp" | "azure"
     }
     CompositeTypes: {
       [_ in never]: never
