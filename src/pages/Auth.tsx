@@ -25,9 +25,6 @@ export default function Auth() {
 
     try {
       setLoading(true);
-      // First, sign out to clear any existing session
-      await supabase.auth.signOut();
-      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -57,9 +54,6 @@ export default function Auth() {
 
     try {
       setLoading(true);
-      // First, sign out to clear any existing session
-      await supabase.auth.signOut();
-      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -184,6 +178,7 @@ export default function Auth() {
               required
               className="text-foreground"
               disabled={loading}
+              autoComplete="email"
             />
             <Input
               type="password"
@@ -193,6 +188,7 @@ export default function Auth() {
               required
               className="text-foreground"
               disabled={loading}
+              autoComplete="current-password"
             />
           </div>
 
