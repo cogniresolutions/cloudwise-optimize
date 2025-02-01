@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { CloudProviderSelector } from "@/components/dashboard/CloudProviderSelector";
 import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
+import { ResourceUsage } from "@/components/dashboard/ResourceUsage";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
@@ -96,6 +97,7 @@ const Index = () => {
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <CostChart />
+          <ResourceUsage provider={selectedProvider} />
         </div>
       </div>
     </div>
