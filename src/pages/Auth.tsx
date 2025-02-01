@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Cloud } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useNavigate } from "react-router-dom";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -13,6 +14,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [authStep, setAuthStep] = useState<'auth' | 'cloud'>('auth');
   const [selectedProvider, setSelectedProvider] = useState<'aws' | 'azure' | 'gcp' | null>(null);
+  const navigate = useNavigate();
 
   const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
