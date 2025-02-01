@@ -32,7 +32,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           const { data, error } = await supabase
             .from('azure_resource_counts')
             .select('*')
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .order('resource_type');
 
           console.log("Azure resource counts response:", { data, error });
 
@@ -40,24 +41,30 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
             throw error;
           }
 
-          if (data) {
-            const resourceMap: { [key: string]: ResourceType } = {
-              'Virtual Machines': { name: 'Virtual Machines', count: 0, usage: 72, icon: Server },
-              'SQL Databases': { name: 'SQL Databases', count: 0, usage: 85, icon: Database },
-              'Storage Accounts': { name: 'Storage Accounts', count: 0, usage: 52, icon: HardDrive },
-            };
+          if (data && data.length > 0) {
+            const formattedResources = data.map(item => {
+              const iconMap: { [key: string]: React.ElementType } = {
+                'Virtual Machines': Server,
+                'SQL Databases': Database,
+                'Storage Accounts': HardDrive,
+              };
 
-            // Update counts from database
-            data.forEach(item => {
-              if (resourceMap[item.resource_type]) {
-                resourceMap[item.resource_type].count = item.count;
-                if (item.usage_percentage !== null) {
-                  resourceMap[item.resource_type].usage = item.usage_percentage;
-                }
-              }
+              return {
+                name: item.resource_type,
+                count: item.count || 0,
+                usage: item.usage_percentage || 0,
+                icon: iconMap[item.resource_type] || Server
+              };
             });
 
-            setResources(Object.values(resourceMap));
+            setResources(formattedResources);
+          } else {
+            // Set default resources if no data
+            setResources([
+              { name: 'Virtual Machines', count: 0, usage: 0, icon: Server },
+              { name: 'SQL Databases', count: 0, usage: 0, icon: Database },
+              { name: 'Storage Accounts', count: 0, usage: 0, icon: HardDrive },
+            ]);
           }
         } else {
           // Default data for other providers
@@ -83,6 +90,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           description: error.message,
           variant: "destructive",
         });
+        // Set empty resources on error
+        setResources([]);
       } finally {
         setIsLoading(false);
       }
