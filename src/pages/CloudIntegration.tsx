@@ -27,6 +27,7 @@ export default function CloudIntegration() {
           description: "Please sign in to connect cloud providers",
           variant: "destructive",
         });
+        navigate("/auth");
         return;
       }
 

@@ -1,5 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { CloudProviderTab } from "./CloudProviderTab";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CloudProviderSelectorProps {
   selectedProvider: string;
@@ -7,12 +9,39 @@ interface CloudProviderSelectorProps {
 }
 
 export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProviderSelectorProps) {
-  // Simulated connection status - in a real app, this would come from your backend
-  const connectionStatus = {
-    aws: true,
+  const [connectionStatus, setConnectionStatus] = useState({
+    aws: false,
     azure: false,
-    gcp: true,
-  };
+    gcp: false,
+  });
+
+  useEffect(() => {
+    const fetchConnections = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('cloud_provider_connections')
+          .select('provider, is_active')
+          .eq('user_id', user.id);
+
+        if (data) {
+          const status = {
+            aws: false,
+            azure: false,
+            gcp: false,
+          };
+          data.forEach(conn => {
+            if (conn.is_active) {
+              status[conn.provider as keyof typeof status] = true;
+            }
+          });
+          setConnectionStatus(status);
+        }
+      }
+    };
+
+    fetchConnections();
+  }, []);
 
   const providers = ["aws", "azure", "gcp"] as const;
 
