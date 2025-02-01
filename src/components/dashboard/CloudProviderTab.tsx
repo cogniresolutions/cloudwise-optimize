@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudCog, AlertCircle } from "lucide-react";
+import { Cloud, CloudCog, AlertCircle, Power } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ConnectionStatus = "connected" | "error" | "configuring" | "not_connected";
 
@@ -9,6 +10,7 @@ interface CloudProviderTabProps {
   onClick: () => void;
   isActive: boolean;
   connectionStatus: ConnectionStatus;
+  onDisconnect?: () => void;
 }
 
 export function CloudProviderTab({ 
@@ -16,7 +18,8 @@ export function CloudProviderTab({
   isConnected, 
   onClick, 
   isActive,
-  connectionStatus 
+  connectionStatus,
+  onDisconnect
 }: CloudProviderTabProps) {
   const getProviderDetails = () => {
     switch (provider) {
@@ -76,9 +79,24 @@ export function CloudProviderTab({
             {details.name}
           </span>
         </div>
-        <span className={`text-sm ${status.color}`}>
-          {status.text}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-sm ${status.color}`}>
+            {status.text}
+          </span>
+          {connectionStatus === "connected" && onDisconnect && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDisconnect();
+              }}
+            >
+              <Power className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );
