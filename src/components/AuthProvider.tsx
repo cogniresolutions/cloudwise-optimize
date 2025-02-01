@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("Initial session check:", session?.user ?? null);
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -31,18 +32,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Listen for changes on auth state (sign in, sign out, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change:", event, session?.user ?? null);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfile(session.user.id);
+        navigate("/"); // Redirect to home on successful login
       } else {
         setProfile(null);
+        if (event === 'SIGNED_OUT') {
+          navigate("/auth");
+        }
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -58,8 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setProfile(data);
     } catch (error: any) {
+      console.error('Error fetching profile:', error.message);
       toast.error("Error fetching profile");
-      console.error('Error:', error.message);
     }
   };
 
