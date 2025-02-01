@@ -13,14 +13,19 @@ const Index = () => {
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Cloud Cost Dashboard</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Cloud Cost Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Monitor and optimize your multi-cloud spending
+            </p>
+          </div>
           <Button>
             <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
           </Button>
         </div>
 
         {/* Cloud Provider Tabs */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <CloudProviderTab
             provider="aws"
             isConnected={true}
@@ -62,7 +67,7 @@ const Index = () => {
             trendLabel="if optimized"
           />
           <CostCard
-            title="Resources"
+            title="Active Resources"
             amount="234"
             trend={5}
             trendLabel="new this month"
