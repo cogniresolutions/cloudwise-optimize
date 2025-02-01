@@ -1,6 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cloud } from "lucide-react";
+import { CloudProviderTab } from "./CloudProviderTab";
 
 interface CloudProviderSelectorProps {
   selectedProvider: string;
@@ -8,25 +7,26 @@ interface CloudProviderSelectorProps {
 }
 
 export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProviderSelectorProps) {
-  const providers = [
-    { id: "aws", name: "AWS" },
-    { id: "azure", name: "Azure" },
-    { id: "gcp", name: "Google Cloud" },
-  ];
+  // Simulated connection status - in a real app, this would come from your backend
+  const connectionStatus = {
+    aws: true,
+    azure: false,
+    gcp: true,
+  };
+
+  const providers = ["aws", "azure", "gcp"] as const;
 
   return (
     <Card className="col-span-full animate-fade-in">
-      <CardContent className="flex gap-4 p-6">
+      <CardContent className="grid gap-4 p-6 md:grid-cols-3">
         {providers.map((provider) => (
-          <Button
-            key={provider.id}
-            variant={selectedProvider === provider.id ? "default" : "outline"}
-            className="flex-1"
-            onClick={() => onSelect(provider.id)}
-          >
-            <Cloud className="mr-2 h-4 w-4" />
-            {provider.name}
-          </Button>
+          <CloudProviderTab
+            key={provider}
+            provider={provider}
+            isConnected={connectionStatus[provider]}
+            isActive={selectedProvider === provider}
+            onClick={() => onSelect(provider)}
+          />
         ))}
       </CardContent>
     </Card>
