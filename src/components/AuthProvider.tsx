@@ -22,13 +22,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log("Fetching profile for user:", userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching profile:', error.message);
+        throw error;
+      }
+      
+      console.log("Profile data:", data);
       setProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message);
@@ -40,12 +46,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log("Initializing session...");
+        const { data: { session }, error } = await supabase.auth.getSession();
         
+        if (error) {
+          console.error("Session error:", error);
+          throw error;
+        }
+
         if (mounted) {
           if (session?.user) {
+            console.log("Found existing session for user:", session.user.email);
             setUser(session.user);
             await fetchProfile(session.user.id);
+          } else {
+            console.log("No existing session found");
           }
           setLoading(false);
         }
@@ -63,24 +78,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      console.log("Auth state change:", event, session?.user ?? null);
+      console.log("Auth state change:", event, session?.user?.email ?? "no user");
       
       if (session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id);
         if (event === 'SIGNED_IN') {
+          console.log("User signed in, redirecting to home");
           navigate("/");
         }
       } else {
         setUser(null);
         setProfile(null);
         if (event === 'SIGNED_OUT') {
+          console.log("User signed out, redirecting to auth");
           navigate("/auth");
         }
       }
     });
 
     return () => {
+      console.log("Cleaning up auth provider");
       mounted = false;
       subscription.unsubscribe();
     };

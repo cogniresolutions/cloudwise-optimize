@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,16 +13,19 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [authStep, setAuthStep] = useState<'auth' | 'cloud'>('auth');
   const [selectedProvider, setSelectedProvider] = useState<'aws' | 'azure' | 'gcp' | null>(null);
-  const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!email || !password) {
       toast.error("Please enter both email and password");
       return;
     }
 
-    if (loading) return; // Prevent multiple submissions
+    if (loading) {
+      console.log("Login already in progress");
+      return;
+    }
 
     const timeoutId = setTimeout(() => {
       setLoading(false);
@@ -31,7 +33,9 @@ export default function Auth() {
     }, 10000);
 
     try {
+      console.log("Attempting login for email:", email);
       setLoading(true);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -39,10 +43,13 @@ export default function Auth() {
 
       clearTimeout(timeoutId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Login error:", error);
+        throw error;
+      }
       
       if (data.user) {
-        console.log("Login successful:", data.user);
+        console.log("Login successful for user:", data.user.email);
         toast.success("Successfully logged in!");
       }
     } catch (error: any) {
@@ -51,19 +58,27 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, loading]);
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!email || !password) {
       toast.error("Please enter both email and password");
       return;
     }
 
+    if (loading) {
+      console.log("Signup already in progress");
+      return;
+    }
+
     try {
+      console.log("Attempting signup for email:", email);
       setLoading(true);
+      
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/auth/callback`,
@@ -73,7 +88,7 @@ export default function Auth() {
       if (error) throw error;
       
       if (data.user) {
-        console.log("Signup successful:", data.user);
+        console.log("Signup successful for user:", data.user.email);
         setAuthStep('cloud');
         toast.success("Account created! Please connect your cloud provider.");
       }
@@ -83,7 +98,7 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, loading]);
 
   const handleCloudConnection = async (provider: 'aws' | 'azure' | 'gcp') => {
     try {
