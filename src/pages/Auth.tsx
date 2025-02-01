@@ -23,12 +23,19 @@ export default function Auth() {
       return;
     }
 
+    const timeoutId = setTimeout(() => {
+      toast.error("Login is taking longer than expected. Please try again.");
+      setLoading(false);
+    }, 10000);
+
     try {
       setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
+
+      clearTimeout(timeoutId);
 
       if (error) throw error;
       
@@ -38,6 +45,7 @@ export default function Auth() {
         navigate("/");
       }
     } catch (error: any) {
+      clearTimeout(timeoutId);
       console.error("Login error:", error);
       toast.error(error.message || "Failed to login");
     } finally {

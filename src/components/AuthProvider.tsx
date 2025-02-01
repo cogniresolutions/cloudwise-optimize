@@ -37,43 +37,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    // Get initial session
+    let mounted = true;
+
     const initSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) throw error;
+        
+        if (mounted && session?.user) {
           setUser(session.user);
           await fetchProfile(session.user.id);
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
+        toast.error("Error initializing session");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     initSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state change:", event, session?.user ?? null);
       
-      if (session?.user) {
-        setUser(session.user);
-        await fetchProfile(session.user.id);
-        if (event === 'SIGNED_IN') {
-          navigate("/");
-        }
-      } else {
-        setUser(null);
-        setProfile(null);
-        if (event === 'SIGNED_OUT') {
-          navigate("/auth");
+      if (mounted) {
+        if (session?.user) {
+          setUser(session.user);
+          await fetchProfile(session.user.id);
+          if (event === 'SIGNED_IN') {
+            navigate("/");
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
+          if (event === 'SIGNED_OUT') {
+            navigate("/auth");
+          }
         }
       }
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [navigate]);
