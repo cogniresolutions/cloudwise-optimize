@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { CloudProviderTab } from "./CloudProviderTab";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,11 +21,11 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
   });
 
   // Fetch connection status on component mount
-  useState(() => {
+  useEffect(() => {
     if (session?.user) {
       fetchConnectionStatus();
     }
-  });
+  }, [session?.user]);
 
   const fetchConnectionStatus = async () => {
     try {
@@ -97,8 +97,8 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
   const providers = ["aws", "azure", "gcp"] as const;
 
   return (
-    <Card className="col-span-full animate-fade-in">
-      <CardContent className="grid gap-4 p-6 md:grid-cols-3">
+    <Card>
+      <CardContent className="flex space-x-4 p-6">
         {providers.map((provider) => (
           <CloudProviderTab
             key={provider}
