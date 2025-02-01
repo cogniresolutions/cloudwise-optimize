@@ -10,9 +10,9 @@ interface CloudProviderSelectorProps {
 
 export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProviderSelectorProps) {
   const [connectionStatus, setConnectionStatus] = useState({
-    aws: false,
-    azure: false,
-    gcp: false,
+    aws: "not_connected" as const,
+    azure: "not_connected" as const,
+    gcp: "not_connected" as const,
   });
 
   useEffect(() => {
@@ -26,13 +26,13 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
 
         if (data) {
           const status = {
-            aws: false,
-            azure: false,
-            gcp: false,
+            aws: "not_connected" as const,
+            azure: "not_connected" as const,
+            gcp: "not_connected" as const,
           };
           data.forEach(conn => {
             if (conn.is_active) {
-              status[conn.provider as keyof typeof status] = true;
+              status[conn.provider as keyof typeof status] = "connected" as const;
             }
           });
           setConnectionStatus(status);
@@ -74,10 +74,10 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
           <CloudProviderTab
             key={provider}
             provider={provider}
-            isConnected={connectionStatus[provider]}
+            isConnected={connectionStatus[provider] === "connected"}
             isActive={selectedProvider === provider}
             onClick={() => onSelect(provider)}
-            connectionStatus={connectionStatus[provider] ? "connected" : "not_connected"}
+            connectionStatus={connectionStatus[provider]}
           />
         ))}
       </CardContent>
