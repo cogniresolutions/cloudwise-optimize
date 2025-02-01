@@ -10,6 +10,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-user-id',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 serve(async (req) => {
@@ -49,7 +50,13 @@ serve(async (req) => {
 
     if (connectionError || !connection) {
       console.error('Error fetching Azure connection:', connectionError);
-      throw new Error('No active Azure connection found');
+      return new Response(
+        JSON.stringify({ error: 'No active Azure connection found' }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404
+        }
+      );
     }
 
     const credentials = connection.credentials;
