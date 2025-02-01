@@ -1,8 +1,11 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const AZURE_OPENAI_API_KEY = Deno.env.get('AZURE_OPENAI_API_KEY')!;
 const AZURE_OPENAI_ENDPOINT = Deno.env.get('AZURE_OPENAI_ENDPOINT')!;
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +20,15 @@ serve(async (req) => {
 
   try {
     const { costData, resourceData } = await req.json();
+    const userId = req.headers.get('x-user-id');
+
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    console.log('Analyzing costs for user:', userId);
+    console.log('Cost data:', costData);
+    console.log('Resource data:', resourceData);
 
     // Prepare the prompt for cost analysis
     const prompt = `Analyze the following cloud resource cost data and provide optimization recommendations:
@@ -27,8 +39,11 @@ serve(async (req) => {
     1. Cost trends and patterns
     2. Potential cost optimization opportunities
     3. Specific recommendations for cost reduction
-    4. Priority level for each recommendation (High/Medium/Low)`;
+    4. Priority level for each recommendation (High/Medium/Low)
+    
+    Format your response as a clear, actionable list of recommendations.`;
 
+    // Call Azure OpenAI API
     const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-4/chat/completions?api-version=2023-05-15`, {
       method: 'POST',
       headers: {
@@ -45,33 +60,47 @@ serve(async (req) => {
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`Azure OpenAI API error: ${response.statusText}`);
+    }
+
     const analysisResult = await response.json();
     console.log('AI Analysis completed:', analysisResult);
 
-    // Store the analysis in the cost_recommendations table
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
+    // Parse the AI response to extract recommendations
+    const aiContent = analysisResult.choices[0].message.content;
+    
+    // Create Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: recommendation, error } = await supabaseClient
+    // Store multiple recommendations based on the AI analysis
+    const recommendations = parseRecommendations(aiContent);
+    
+    // Delete existing recommendations for this user and provider
+    await supabase
       .from('cost_recommendations')
-      .insert({
-        user_id: req.headers.get('x-user-id'),
+      .delete()
+      .eq('user_id', userId)
+      .eq('provider', resourceData.provider);
+
+    // Insert new recommendations
+    const { data: insertedRecs, error: insertError } = await supabase
+      .from('cost_recommendations')
+      .insert(recommendations.map(rec => ({
+        user_id: userId,
         provider: resourceData.provider,
-        title: 'AI Cost Analysis',
-        description: analysisResult.choices[0].message.content,
-        potential_savings: calculatePotentialSavings(costData),
-        priority: 'high',
+        title: rec.title,
+        description: rec.description,
+        potential_savings: rec.savings,
+        priority: rec.priority.toLowerCase(),
         resource_ids: resourceData.resourceIds,
         ai_analysis: analysisResult,
-      })
-      .select()
-      .single();
+      })))
+      .select();
 
-    if (error) throw error;
+    if (insertError) throw insertError;
 
-    return new Response(JSON.stringify(recommendation), {
+    return new Response(JSON.stringify({ success: true, recommendations: insertedRecs }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
@@ -83,9 +112,46 @@ serve(async (req) => {
   }
 });
 
-function calculatePotentialSavings(costData: any) {
-  // Implement basic savings calculation logic
-  // This is a simplified example - you may want to make this more sophisticated
-  const totalCost = costData.reduce((acc: number, curr: any) => acc + curr.cost, 0);
-  return totalCost * 0.2; // Assume 20% potential savings
+function parseRecommendations(aiContent: string) {
+  // Split content into lines and process each recommendation
+  const lines = aiContent.split('\n');
+  const recommendations = [];
+  let currentRec = null;
+
+  for (const line of lines) {
+    if (line.match(/^\d+\./)) {
+      // If we have a previous recommendation, save it
+      if (currentRec) {
+        recommendations.push(currentRec);
+      }
+      // Start a new recommendation
+      currentRec = {
+        title: line.replace(/^\d+\.\s*/, ''),
+        description: '',
+        priority: 'Medium', // Default priority
+        savings: 0,
+      };
+    } else if (currentRec) {
+      // Add to current recommendation description
+      if (line.toLowerCase().includes('priority')) {
+        const priority = line.toLowerCase().includes('high') ? 'High' :
+                        line.toLowerCase().includes('low') ? 'Low' : 'Medium';
+        currentRec.priority = priority;
+      } else if (line.toLowerCase().includes('saving')) {
+        const savingsMatch = line.match(/\$?\d+(\.\d+)?/);
+        if (savingsMatch) {
+          currentRec.savings = parseFloat(savingsMatch[0].replace('$', ''));
+        }
+      } else if (line.trim()) {
+        currentRec.description += (currentRec.description ? '\n' : '') + line.trim();
+      }
+    }
+  }
+
+  // Don't forget to add the last recommendation
+  if (currentRec) {
+    recommendations.push(currentRec);
+  }
+
+  return recommendations;
 }
