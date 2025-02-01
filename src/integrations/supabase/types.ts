@@ -94,6 +94,60 @@ export type Database = {
           },
         ]
       }
+      automated_actions: {
+        Row: {
+          action_type: string
+          created_at: string | null
+          id: string
+          last_run_at: string | null
+          next_run_at: string | null
+          resource_id: string | null
+          schedule: Json | null
+          status: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string | null
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          resource_id?: string | null
+          schedule?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string | null
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          resource_id?: string | null
+          schedule?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automated_actions_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "cloud_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automated_actions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_provider_connections: {
         Row: {
           created_at: string
@@ -723,6 +777,51 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "personas_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resource_schedules: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          resource_id: string | null
+          schedule_config: Json
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          resource_id?: string | null
+          schedule_config: Json
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          resource_id?: string | null
+          schedule_config?: Json
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resource_schedules_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "cloud_resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resource_schedules_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
