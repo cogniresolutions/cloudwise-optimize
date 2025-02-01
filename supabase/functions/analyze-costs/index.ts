@@ -13,8 +13,11 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('Received request to analyze costs');
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -23,6 +26,7 @@ serve(async (req) => {
     const userId = req.headers.get('x-user-id');
 
     if (!userId) {
+      console.error('User ID is missing from request');
       throw new Error('User ID is required');
     }
 
@@ -43,6 +47,7 @@ serve(async (req) => {
     
     Format your response as a clear, actionable list of recommendations.`;
 
+    console.log('Sending request to Azure OpenAI');
     // Call Azure OpenAI API
     const response = await fetch(`${AZURE_OPENAI_ENDPOINT}/openai/deployments/gpt-4/chat/completions?api-version=2023-05-15`, {
       method: 'POST',
@@ -61,6 +66,7 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
+      console.error('Azure OpenAI API error:', response.statusText);
       throw new Error(`Azure OpenAI API error: ${response.statusText}`);
     }
 
@@ -75,8 +81,10 @@ serve(async (req) => {
 
     // Store multiple recommendations based on the AI analysis
     const recommendations = parseRecommendations(aiContent);
+    console.log('Parsed recommendations:', recommendations);
     
     // Delete existing recommendations for this user and provider
+    console.log('Deleting existing recommendations');
     await supabase
       .from('cost_recommendations')
       .delete()
@@ -84,6 +92,7 @@ serve(async (req) => {
       .eq('provider', resourceData.provider);
 
     // Insert new recommendations
+    console.log('Inserting new recommendations');
     const { data: insertedRecs, error: insertError } = await supabase
       .from('cost_recommendations')
       .insert(recommendations.map(rec => ({
@@ -98,7 +107,12 @@ serve(async (req) => {
       })))
       .select();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Error inserting recommendations:', insertError);
+      throw insertError;
+    }
+
+    console.log('Successfully inserted recommendations:', insertedRecs);
 
     return new Response(JSON.stringify({ success: true, recommendations: insertedRecs }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -113,6 +127,7 @@ serve(async (req) => {
 });
 
 function parseRecommendations(aiContent: string) {
+  console.log('Parsing AI content for recommendations');
   // Split content into lines and process each recommendation
   const lines = aiContent.split('\n');
   const recommendations = [];
@@ -153,5 +168,6 @@ function parseRecommendations(aiContent: string) {
     recommendations.push(currentRec);
   }
 
+  console.log('Parsed recommendations:', recommendations);
   return recommendations;
 }

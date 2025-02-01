@@ -1,47 +1,74 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
-import { ClientSecretCredential } from "https://esm.sh/@azure/identity@3.3.0"
-import { ResourceManagementClient } from "https://esm.sh/@azure/arm-resources@5.2.0"
-import { ComputeManagementClient } from "https://esm.sh/@azure/arm-compute@21.2.0"
-import { SqlManagementClient } from "https://esm.sh/@azure/arm-sql@9.1.0"
-import { StorageManagementClient } from "https://esm.sh/@azure/arm-storage@18.2.0"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { ClientSecretCredential } from "https://esm.sh/@azure/identity@3.3.0";
+import { ResourceManagementClient } from "https://esm.sh/@azure/arm-resources@5.2.0";
+import { ComputeManagementClient } from "https://esm.sh/@azure/arm-compute@21.2.0";
+import { SqlManagementClient } from "https://esm.sh/@azure/arm-sql@9.1.0";
+import { StorageManagementClient } from "https://esm.sh/@azure/arm-storage@18.2.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-user-id',
-}
+};
 
-async function initializeAzureClients(credentials: any) {
+serve(async (req) => {
+  console.log('Received request to scan Azure resources');
+
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
-    console.log('Initializing Azure clients with credentials:', {
-      tenantId: credentials.tenantId,
+    const userId = req.headers.get('x-user-id');
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    console.log('Processing request for user:', userId);
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get Azure credentials for the user
+    console.log('Fetching Azure credentials for user');
+    const { data: connection, error: connectionError } = await supabase
+      .from('cloud_provider_connections')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('provider', 'azure')
+      .eq('is_active', true)
+      .single();
+
+    if (connectionError || !connection) {
+      console.error('Error fetching Azure connection:', connectionError);
+      throw new Error('No active Azure connection found');
+    }
+
+    const credentials = connection.credentials;
+    console.log('Retrieved Azure credentials for:', {
       clientId: credentials.clientId,
+      tenantId: credentials.tenantId,
       subscriptionId: credentials.subscriptionId
     });
 
+    // Initialize Azure clients
     const credential = new ClientSecretCredential(
       credentials.tenantId,
       credentials.clientId,
       credentials.clientSecret
     );
 
-    return {
-      resourceClient: new ResourceManagementClient(credential, credentials.subscriptionId),
-      computeClient: new ComputeManagementClient(credential, credentials.subscriptionId),
-      sqlClient: new SqlManagementClient(credential, credentials.subscriptionId),
-      storageClient: new StorageManagementClient(credential, credentials.subscriptionId),
-    };
-  } catch (error) {
-    console.error('Error initializing Azure clients:', error);
-    throw new Error(`Failed to initialize Azure clients: ${error.message}`);
-  }
-}
+    const resourceClient = new ResourceManagementClient(credential, credentials.subscriptionId);
+    const computeClient = new ComputeManagementClient(credential, credentials.subscriptionId);
+    const sqlClient = new SqlManagementClient(credential, credentials.subscriptionId);
+    const storageClient = new StorageManagementClient(credential, credentials.subscriptionId);
 
-async function scanResources(supabaseClient: any, userId: string, clients: any) {
-  const { resourceClient, computeClient, sqlClient, storageClient } = clients;
-  
-  try {
-    console.log('Starting resource scan for user:', userId);
-    
+    console.log('Initialized Azure clients successfully');
+
     // Get resource groups
     const resourceGroups = [];
     for await (const group of resourceClient.resourceGroups.list()) {
@@ -59,9 +86,12 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     let storageCount = 0;
     let storageUsage = 0;
 
-    // Count VMs and get their status
+    // Count resources and calculate usage
     for (const group of resourceGroups) {
       try {
+        console.log(`Scanning resources in group: ${group}`);
+
+        // Virtual Machines
         const vms = await computeClient.virtualMachines.list(group);
         for await (const vm of vms) {
           vmCount++;
@@ -75,15 +105,8 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
             }
           }
         }
-      } catch (error) {
-        console.error(`Error processing VMs in group ${group}:`, error);
-      }
-    }
-    vmUsage = vmCount > 0 ? Math.round(vmUsage / vmCount) : 0;
 
-    // Count SQL databases
-    for (const group of resourceGroups) {
-      try {
+        // SQL Databases
         const servers = await sqlClient.servers.listByResourceGroup(group);
         for await (const server of servers) {
           if (!server.name) continue;
@@ -93,31 +116,28 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
             sqlUsage += 75; // Default usage value
           }
         }
-      } catch (error) {
-        console.error(`Error processing SQL databases in group ${group}:`, error);
-      }
-    }
-    sqlUsage = sqlCount > 0 ? Math.round(sqlUsage / sqlCount) : 0;
 
-    // Count storage accounts
-    for (const group of resourceGroups) {
-      try {
+        // Storage Accounts
         const accounts = await storageClient.storageAccounts.listByResourceGroup(group);
         for await (const account of accounts) {
           storageCount++;
           storageUsage += 60; // Default usage value
         }
       } catch (error) {
-        console.error(`Error processing storage accounts in group ${group}:`, error);
+        console.error(`Error processing resources in group ${group}:`, error);
       }
     }
+
+    // Calculate average usage percentages
+    vmUsage = vmCount > 0 ? Math.round(vmUsage / vmCount) : 0;
+    sqlUsage = sqlCount > 0 ? Math.round(sqlUsage / sqlCount) : 0;
     storageUsage = storageCount > 0 ? Math.round(storageUsage / storageCount) : 0;
 
     console.log('Resource counts:', { vmCount, sqlCount, storageCount });
     console.log('Usage percentages:', { vmUsage, sqlUsage, storageUsage });
 
     // Update resource counts in database
-    const { error: countError } = await supabaseClient
+    const { error: countError } = await supabase
       .from('azure_resource_counts')
       .upsert([
         { 
@@ -150,7 +170,7 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
     }
 
     // Update last sync timestamp
-    const { error: syncError } = await supabaseClient
+    const { error: syncError } = await supabase
       .from('cloud_provider_connections')
       .update({ last_sync_at: new Date().toISOString() })
       .eq('user_id', userId)
@@ -160,75 +180,28 @@ async function scanResources(supabaseClient: any, userId: string, clients: any) 
       console.error('Error updating last sync timestamp:', syncError);
     }
 
-    return {
-      vmCount,
-      sqlCount,
-      storageCount,
-      vmUsage,
-      sqlUsage,
-      storageUsage
-    };
-  } catch (error) {
-    console.error('Error scanning resources:', error);
-    throw error;
-  }
-}
+    console.log('Successfully updated resource counts and sync timestamp');
 
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        counts: { vmCount, sqlCount, storageCount },
+        usage: { vmUsage, sqlUsage, storageUsage }
+      }), 
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
     );
 
-    const userId = req.headers.get('x-user-id');
-    if (!userId) {
-      throw new Error('User ID is required');
-    }
-
-    console.log('Fetching Azure credentials for user:', userId);
-
-    // Get Azure credentials
-    const { data: connectionData, error: connectionError } = await supabaseClient
-      .from('cloud_provider_connections')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('provider', 'azure')
-      .eq('is_active', true)
-      .single();
-
-    if (connectionError || !connectionData) {
-      console.error('Error fetching Azure connection:', connectionError);
-      throw new Error('No active Azure connection found');
-    }
-
-    const credentials = connectionData.credentials;
-    console.log('Retrieved Azure credentials for:', {
-      clientId: credentials.clientId,
-      tenantId: credentials.tenantId,
-      subscriptionId: credentials.subscriptionId,
-    });
-
-    // Initialize Azure clients
-    const clients = await initializeAzureClients(credentials);
-    
-    // Scan resources and update database
-    const resourceData = await scanResources(supabaseClient, userId, clients);
-
-    return new Response(JSON.stringify(resourceData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200
-    });
-
   } catch (error) {
-    console.error('Error scanning Azure resources:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 500
-    });
+    console.error('Error in scan-azure-resources function:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }), 
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      }
+    );
   }
 });
