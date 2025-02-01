@@ -29,10 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) {
-        console.error('Error fetching profile:', error.message);
-        throw error;
-      }
+      if (error) throw error;
       
       console.log("Profile data:", data);
       setProfile(data);
@@ -50,10 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Initializing session...");
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error("Session error:", error);
-          throw error;
-        }
+        if (error) throw error;
 
         if (mounted) {
           if (session?.user) {
@@ -65,21 +59,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(null);
             setProfile(null);
           }
-          setLoading(false);
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
         if (mounted) {
-          setLoading(false);
           toast.error("Failed to initialize session");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
     };
 
+    // Initialize session first
     initSession();
 
     // Setup auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       console.log("Auth state change:", event, session?.user?.email ?? "no user");
@@ -101,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
+    // Cleanup function
     return () => {
       console.log("Cleaning up auth provider");
       mounted = false;
