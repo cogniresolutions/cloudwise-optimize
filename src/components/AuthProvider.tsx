@@ -32,7 +32,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message);
-      toast.error("Error fetching profile");
     }
   };
 
@@ -41,40 +40,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initSession = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         
-        if (error) throw error;
-        
-        if (mounted && session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
+        if (mounted) {
+          if (session?.user) {
+            setUser(session.user);
+            await fetchProfile(session.user.id);
+          }
+          setLoading(false);
         }
       } catch (error) {
         console.error("Error getting initial session:", error);
-        toast.error("Error initializing session");
-      } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          toast.error("Failed to initialize session");
+        }
       }
     };
 
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
       console.log("Auth state change:", event, session?.user ?? null);
       
-      if (mounted) {
-        if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-          if (event === 'SIGNED_IN') {
-            navigate("/");
-          }
-        } else {
-          setUser(null);
-          setProfile(null);
-          if (event === 'SIGNED_OUT') {
-            navigate("/auth");
-          }
+      if (session?.user) {
+        setUser(session.user);
+        await fetchProfile(session.user.id);
+        if (event === 'SIGNED_IN') {
+          navigate("/");
+        }
+      } else {
+        setUser(null);
+        setProfile(null);
+        if (event === 'SIGNED_OUT') {
+          navigate("/auth");
         }
       }
     });
