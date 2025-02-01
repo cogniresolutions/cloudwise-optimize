@@ -12,7 +12,6 @@ const corsHeaders = {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -23,7 +22,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get user ID from request header
     const userId = req.headers.get('x-user-id');
     if (!userId) {
       throw new Error('User ID is required');
@@ -45,7 +43,7 @@ Deno.serve(async (req) => {
     }
 
     const credentials = connectionData.credentials;
-    console.log('Retrieved Azure credentials:', {
+    console.log('Retrieved Azure credentials for:', {
       clientId: credentials.clientId,
       tenantId: credentials.tenantId,
       subscriptionId: credentials.subscriptionId,
@@ -65,17 +63,19 @@ Deno.serve(async (req) => {
     const storageClient = new StorageManagementClient(credential, credentials.subscriptionId);
     const consumptionClient = new ConsumptionManagementClient(credential, credentials.subscriptionId);
 
-    console.log('Initialized Azure clients');
+    console.log('Successfully initialized Azure clients');
 
     // Get resource groups
     const resourceGroups = [];
     for await (const group of resourceClient.resourceGroups.list()) {
-      resourceGroups.push(group.name);
+      if (group.name) {
+        resourceGroups.push(group.name);
+      }
     }
 
     console.log('Found resource groups:', resourceGroups);
 
-    // Count resources and calculate usage
+    // Initialize counters and usage metrics
     let vmCount = 0;
     let vmUsage = 0;
     let sqlCount = 0;
@@ -83,47 +83,56 @@ Deno.serve(async (req) => {
     let storageCount = 0;
     let storageUsage = 0;
 
-    // Get VM usage and costs
+    // Count VMs and get their status
     for (const group of resourceGroups) {
-      if (!group) continue;
-      const vms = computeClient.virtualMachines.list(group);
-      for await (const vm of vms) {
-        vmCount++;
-        // Get VM usage percentage (CPU utilization as an example)
-        try {
-          const usage = await computeClient.virtualMachines.instanceView(group, vm.name || '');
-          if (usage.statuses?.[0]?.code === "PowerState/running") {
-            vmUsage += 100; // Count as 100% if running
+      try {
+        const vms = computeClient.virtualMachines.list(group);
+        for await (const vm of vms) {
+          vmCount++;
+          const instanceView = await computeClient.virtualMachines.instanceView(group, vm.name || '');
+          const isRunning = instanceView.statuses?.some(
+            status => status.code?.toLowerCase().includes('running')
+          );
+          if (isRunning) {
+            vmUsage += 100;
           }
-        } catch (error) {
-          console.error('Error getting VM usage:', error);
         }
+      } catch (error) {
+        console.error(`Error processing VMs in group ${group}:`, error);
       }
     }
     vmUsage = vmCount > 0 ? Math.round(vmUsage / vmCount) : 0;
 
-    // Get SQL Database usage
+    // Count SQL databases
     for (const group of resourceGroups) {
-      if (!group) continue;
-      const servers = sqlClient.servers.listByResourceGroup(group);
-      for await (const server of servers) {
-        if (!server.name) continue;
-        const databases = sqlClient.databases.listByServer(group, server.name);
-        for await (const db of databases) {
-          sqlCount++;
-          sqlUsage += 75; // Example usage percentage
+      try {
+        const servers = sqlClient.servers.listByResourceGroup(group);
+        for await (const server of servers) {
+          if (!server.name) continue;
+          const databases = sqlClient.databases.listByServer(group, server.name);
+          for await (const db of databases) {
+            sqlCount++;
+            // Assuming active databases are at 75% usage
+            sqlUsage += 75;
+          }
         }
+      } catch (error) {
+        console.error(`Error processing SQL databases in group ${group}:`, error);
       }
     }
     sqlUsage = sqlCount > 0 ? Math.round(sqlUsage / sqlCount) : 0;
 
-    // Get Storage Account usage
+    // Count storage accounts
     for (const group of resourceGroups) {
-      if (!group) continue;
-      const accounts = storageClient.storageAccounts.listByResourceGroup(group);
-      for await (const account of accounts) {
-        storageCount++;
-        storageUsage += 60; // Example usage percentage
+      try {
+        const accounts = storageClient.storageAccounts.listByResourceGroup(group);
+        for await (const account of accounts) {
+          storageCount++;
+          // Assuming active storage accounts are at 60% usage
+          storageUsage += 60;
+        }
+      } catch (error) {
+        console.error(`Error processing storage accounts in group ${group}:`, error);
       }
     }
     storageUsage = storageCount > 0 ? Math.round(storageUsage / storageCount) : 0;
@@ -142,17 +151,19 @@ Deno.serve(async (req) => {
         startDate: thirtyDaysAgo,
         endDate: new Date(),
       })) {
-        costData.push({
-          resourceId: usage.resourceId,
-          cost: usage.pretaxCost,
-          date: usage.date,
-          resourceType: usage.resourceType,
-        });
+        if (usage.resourceId && usage.pretaxCost) {
+          costData.push({
+            resourceId: usage.resourceId,
+            cost: usage.pretaxCost,
+            date: usage.date,
+            resourceType: usage.resourceType,
+          });
+        }
       }
       
       console.log('Retrieved cost data:', costData.length, 'entries');
 
-      // Store cost data for analysis
+      // Store cost data
       if (costData.length > 0) {
         const { error: resourceError } = await supabaseClient
           .from('cloud_resources')
@@ -177,9 +188,27 @@ Deno.serve(async (req) => {
     const { error: countError } = await supabaseClient
       .from('azure_resource_counts')
       .upsert([
-        { user_id: userId, resource_type: 'Virtual Machines', count: vmCount, usage_percentage: vmUsage },
-        { user_id: userId, resource_type: 'SQL Databases', count: sqlCount, usage_percentage: sqlUsage },
-        { user_id: userId, resource_type: 'Storage Accounts', count: storageCount, usage_percentage: storageUsage }
+        { 
+          user_id: userId, 
+          resource_type: 'Virtual Machines', 
+          count: vmCount, 
+          usage_percentage: vmUsage,
+          last_updated_at: new Date().toISOString()
+        },
+        { 
+          user_id: userId, 
+          resource_type: 'SQL Databases', 
+          count: sqlCount, 
+          usage_percentage: sqlUsage,
+          last_updated_at: new Date().toISOString()
+        },
+        { 
+          user_id: userId, 
+          resource_type: 'Storage Accounts', 
+          count: storageCount, 
+          usage_percentage: storageUsage,
+          last_updated_at: new Date().toISOString()
+        }
       ], {
         onConflict: 'user_id,resource_type'
       });
