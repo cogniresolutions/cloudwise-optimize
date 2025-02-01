@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -20,7 +20,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     try {
       console.log("Fetching profile for user:", userId);
       const { data, error } = await supabase
@@ -38,11 +38,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(data);
     } catch (error: any) {
       console.error('Error fetching profile:', error.message);
+      toast.error("Failed to fetch user profile");
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
+    let authListener: any = null;
 
     const initSession = async () => {
       try {
@@ -61,6 +63,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await fetchProfile(session.user.id);
           } else {
             console.log("No existing session found");
+            setUser(null);
+            setProfile(null);
           }
           setLoading(false);
         }
@@ -75,15 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    authListener = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       console.log("Auth state change:", event, session?.user?.email ?? "no user");
       
       if (session?.user) {
         setUser(session.user);
-        await fetchProfile(session.user.id);
         if (event === 'SIGNED_IN') {
+          await fetchProfile(session.user.id);
           console.log("User signed in, redirecting to home");
           navigate("/");
         }
@@ -100,9 +104,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       console.log("Cleaning up auth provider");
       mounted = false;
-      subscription.unsubscribe();
+      if (authListener) {
+        authListener.subscription.unsubscribe();
+      }
     };
-  }, [navigate]);
+  }, [navigate, fetchProfile]);
 
   return (
     <AuthContext.Provider value={{ user, loading, profile }}>
