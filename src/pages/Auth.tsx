@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
 import { Mail, Lock, Building2 } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/components/AuthProvider";
+import { useEffect } from "react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -14,7 +16,13 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,24 +40,18 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast({
-          title: "Success!",
-          description: "Please check your email to verify your account.",
-        });
+        toast.success("Check your email to verify your account");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         if (error) throw error;
+        toast.success("Successfully logged in");
         navigate("/");
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
