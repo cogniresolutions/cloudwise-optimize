@@ -18,19 +18,28 @@ export default function Auth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
       
-      toast.success("Successfully logged in!");
-      navigate("/");
+      if (data.user) {
+        console.log("Login successful:", data.user);
+        toast.success("Successfully logged in!");
+        navigate("/");
+      }
     } catch (error: any) {
-      toast.error(error.message);
+      console.error("Login error:", error);
+      toast.error(error.message || "Failed to login");
     } finally {
       setLoading(false);
     }
@@ -38,9 +47,14 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -50,10 +64,14 @@ export default function Auth() {
 
       if (error) throw error;
       
-      setAuthStep('cloud');
-      toast.success("Account created! Please connect your cloud provider.");
+      if (data.user) {
+        console.log("Signup successful:", data.user);
+        setAuthStep('cloud');
+        toast.success("Account created! Please connect your cloud provider.");
+      }
     } catch (error: any) {
-      toast.error(error.message);
+      console.error("Signup error:", error);
+      toast.error(error.message || "Failed to create account");
     } finally {
       setLoading(false);
     }
@@ -65,7 +83,11 @@ export default function Auth() {
       setSelectedProvider(provider);
 
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      console.log("Connecting cloud provider:", provider, "for user:", user.id);
 
       // Insert cloud provider connection
       const { error } = await supabase
@@ -84,9 +106,11 @@ export default function Auth() {
         body: { provider, userId: user.id }
       });
 
+      console.log("Cloud provider connected successfully");
       toast.success(`Successfully connected to ${provider.toUpperCase()}`);
       navigate("/");
     } catch (error: any) {
+      console.error("Cloud connection error:", error);
       toast.error(`Failed to connect to ${provider.toUpperCase()}: ${error.message}`);
       setSelectedProvider(null);
     } finally {
@@ -96,13 +120,13 @@ export default function Auth() {
 
   if (authStep === 'cloud') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
         <Card className="max-w-md w-full space-y-8 p-8">
           <div>
-            <h2 className="text-center text-3xl font-extrabold text-gray-900">
+            <h2 className="text-center text-3xl font-extrabold text-foreground">
               Connect Your Cloud Provider
             </h2>
-            <p className="mt-2 text-center text-sm text-gray-600">
+            <p className="mt-2 text-center text-sm text-muted-foreground">
               Choose your cloud provider to start optimizing costs
             </p>
           </div>
@@ -136,17 +160,17 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <Card className="max-w-md w-full space-y-8 p-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-foreground">
             Welcome to Cloud Cost Manager
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-muted-foreground">
             Optimize your multi-cloud costs with AI
           </p>
         </div>
-        <form className="mt-8 space-y-6">
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="rounded-md shadow-sm space-y-4">
             <Input
               type="email"
@@ -154,6 +178,7 @@ export default function Auth() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="text-foreground"
             />
             <Input
               type="password"
@@ -161,12 +186,13 @@ export default function Auth() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="text-foreground"
             />
           </div>
 
           <div className="flex flex-col space-y-4">
             <Button
-              onClick={handleLogin}
+              type="submit"
               disabled={loading}
               className="w-full"
             >
@@ -180,6 +206,7 @@ export default function Auth() {
               disabled={loading}
               variant="outline"
               className="w-full"
+              type="button"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
