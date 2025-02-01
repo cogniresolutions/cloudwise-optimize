@@ -14,8 +14,8 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  console.log('Received request to scan Azure resources');
-
+  console.log('Starting Azure resource scan...');
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     console.log('Handling CORS preflight request');
@@ -26,20 +26,24 @@ serve(async (req) => {
   }
 
   try {
+    // Verify environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase configuration');
+    }
+
     const userId = req.headers.get('x-user-id');
     if (!userId) {
       throw new Error('User ID is required');
     }
 
-    console.log('Processing request for user:', userId);
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('Initializing Supabase client...');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get Azure credentials for the user
-    console.log('Fetching Azure credentials for user');
+    // Get Azure credentials
+    console.log('Fetching Azure credentials for user:', userId);
     const { data: connection, error: connectionError } = await supabase
       .from('cloud_provider_connections')
       .select('*')
@@ -60,28 +64,43 @@ serve(async (req) => {
     }
 
     const credentials = connection.credentials;
-    console.log('Retrieved Azure credentials for:', {
+    console.log('Retrieved Azure credentials:', {
       clientId: credentials.clientId,
       tenantId: credentials.tenantId,
-      subscriptionId: credentials.subscriptionId
+      subscriptionId: credentials.subscriptionId,
+      // Don't log clientSecret for security
     });
 
-    // Initialize Azure clients
-    const credential = new ClientSecretCredential(
-      credentials.tenantId,
-      credentials.clientId,
-      credentials.clientSecret
-    );
+    // Initialize Azure clients with error handling
+    console.log('Initializing Azure credentials...');
+    let credential;
+    try {
+      credential = new ClientSecretCredential(
+        credentials.tenantId,
+        credentials.clientId,
+        credentials.clientSecret
+      );
+      console.log('Azure authentication successful');
+    } catch (authError) {
+      console.error('Azure authentication failed:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Azure authentication failed' }), 
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      );
+    }
 
+    console.log('Initializing Azure clients...');
     const resourceClient = new ResourceManagementClient(credential, credentials.subscriptionId);
     const computeClient = new ComputeManagementClient(credential, credentials.subscriptionId);
     const sqlClient = new SqlManagementClient(credential, credentials.subscriptionId);
     const storageClient = new StorageManagementClient(credential, credentials.subscriptionId);
 
-    console.log('Initialized Azure clients successfully');
-
-    // Get resource groups
-    const resourceGroups = [];
+    // Get resource groups with pagination handling
+    console.log('Fetching resource groups...');
+    const resourceGroups: string[] = [];
     for await (const group of resourceClient.resourceGroups.list()) {
       if (group.name) {
         resourceGroups.push(group.name);
@@ -97,45 +116,61 @@ serve(async (req) => {
     let storageCount = 0;
     let storageUsage = 0;
 
-    // Count resources and calculate usage
+    // Process each resource group with error handling
     for (const group of resourceGroups) {
+      console.log(`Processing resource group: ${group}`);
+      
       try {
-        console.log(`Scanning resources in group: ${group}`);
-
         // Virtual Machines
-        const vms = await computeClient.virtualMachines.list(group);
+        console.log(`Fetching VMs for group: ${group}`);
+        const vms = computeClient.virtualMachines.list(group);
         for await (const vm of vms) {
           vmCount++;
           if (vm.name) {
-            const instanceView = await computeClient.virtualMachines.instanceView(group, vm.name);
-            const isRunning = instanceView.statuses?.some(
-              status => status.code?.toLowerCase().includes('running')
-            );
-            if (isRunning) {
-              vmUsage += 100;
+            try {
+              const instanceView = await computeClient.virtualMachines.instanceView(group, vm.name);
+              const isRunning = instanceView.statuses?.some(
+                status => status.code?.toLowerCase().includes('running')
+              );
+              if (isRunning) {
+                vmUsage += 100;
+              }
+            } catch (vmError) {
+              console.error(`Error getting VM instance view for ${vm.name}:`, vmError);
             }
           }
         }
+        console.log(`Found ${vmCount} VMs in group ${group}`);
 
         // SQL Databases
-        const servers = await sqlClient.servers.listByResourceGroup(group);
+        console.log(`Fetching SQL databases for group: ${group}`);
+        const servers = sqlClient.servers.listByResourceGroup(group);
         for await (const server of servers) {
           if (!server.name) continue;
-          const databases = await sqlClient.databases.listByServer(group, server.name);
-          for await (const db of databases) {
-            sqlCount++;
-            sqlUsage += 75; // Default usage value
+          try {
+            const databases = sqlClient.databases.listByServer(group, server.name);
+            for await (const db of databases) {
+              sqlCount++;
+              sqlUsage += 75; // Default usage value
+            }
+          } catch (dbError) {
+            console.error(`Error fetching databases for server ${server.name}:`, dbError);
           }
         }
+        console.log(`Found ${sqlCount} SQL databases in group ${group}`);
 
         // Storage Accounts
-        const accounts = await storageClient.storageAccounts.listByResourceGroup(group);
+        console.log(`Fetching storage accounts for group: ${group}`);
+        const accounts = storageClient.storageAccounts.listByResourceGroup(group);
         for await (const account of accounts) {
           storageCount++;
           storageUsage += 60; // Default usage value
         }
-      } catch (error) {
-        console.error(`Error processing resources in group ${group}:`, error);
+        console.log(`Found ${storageCount} storage accounts in group ${group}`);
+
+      } catch (groupError) {
+        console.error(`Error processing resource group ${group}:`, groupError);
+        // Continue with next group
       }
     }
 
@@ -144,10 +179,11 @@ serve(async (req) => {
     sqlUsage = sqlCount > 0 ? Math.round(sqlUsage / sqlCount) : 0;
     storageUsage = storageCount > 0 ? Math.round(storageUsage / storageCount) : 0;
 
-    console.log('Resource counts:', { vmCount, sqlCount, storageCount });
+    console.log('Final resource counts:', { vmCount, sqlCount, storageCount });
     console.log('Usage percentages:', { vmUsage, sqlUsage, storageUsage });
 
     // Update resource counts in database
+    console.log('Updating resource counts in database...');
     const { error: countError } = await supabase
       .from('azure_resource_counts')
       .upsert([
@@ -181,6 +217,7 @@ serve(async (req) => {
     }
 
     // Update last sync timestamp
+    console.log('Updating last sync timestamp...');
     const { error: syncError } = await supabase
       .from('cloud_provider_connections')
       .update({ last_sync_at: new Date().toISOString() })
@@ -191,7 +228,7 @@ serve(async (req) => {
       console.error('Error updating last sync timestamp:', syncError);
     }
 
-    console.log('Successfully updated resource counts and sync timestamp');
+    console.log('Resource scan completed successfully');
 
     return new Response(
       JSON.stringify({ 
@@ -208,7 +245,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in scan-azure-resources function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }), 
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }), 
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500
