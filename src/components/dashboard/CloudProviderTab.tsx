@@ -1,14 +1,21 @@
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudCog } from "lucide-react";
+import { Cloud, CloudCog, Loader2 } from "lucide-react";
 
 interface CloudProviderTabProps {
   provider: "aws" | "azure" | "gcp";
   isConnected: boolean;
   onClick: () => void;
   isActive: boolean;
+  isLoading?: boolean;
 }
 
-export function CloudProviderTab({ provider, isConnected, onClick, isActive }: CloudProviderTabProps) {
+export function CloudProviderTab({ 
+  provider, 
+  isConnected, 
+  onClick, 
+  isActive,
+  isLoading = false 
+}: CloudProviderTabProps) {
   const getProviderDetails = () => {
     switch (provider) {
       case "aws":
@@ -31,7 +38,9 @@ export function CloudProviderTab({ provider, isConnected, onClick, isActive }: C
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          {isConnected ? (
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : isConnected ? (
             <Cloud className={`h-5 w-5 ${details.color}`} />
           ) : (
             <CloudCog className="h-5 w-5 text-gray-400" />
