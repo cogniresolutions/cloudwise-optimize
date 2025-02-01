@@ -89,7 +89,6 @@ export default function Auth() {
 
       console.log("Connecting cloud provider:", provider, "for user:", user.id);
 
-      // Insert cloud provider connection
       const { error } = await supabase
         .from('cloud_provider_connections')
         .insert({
@@ -101,7 +100,6 @@ export default function Auth() {
 
       if (error) throw error;
 
-      // Trigger initial cost data collection
       await supabase.functions.invoke('analyze-costs', {
         body: { provider, userId: user.id }
       });
@@ -179,6 +177,7 @@ export default function Auth() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="text-foreground"
+              disabled={loading}
             />
             <Input
               type="password"
@@ -187,6 +186,7 @@ export default function Auth() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="text-foreground"
+              disabled={loading}
             />
           </div>
 
