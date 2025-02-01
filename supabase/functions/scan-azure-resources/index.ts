@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js'
-import { DefaultAzureCredential } from '@azure/identity'
-import { ResourceManagementClient } from '@azure/arm-resources'
-import { ComputeManagementClient } from '@azure/arm-compute'
-import { SqlManagementClient } from '@azure/arm-sql'
-import { StorageManagementClient } from '@azure/arm-storage'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { DefaultAzureCredential } from 'https://esm.sh/@azure/identity@3.3.0'
+import { ResourceManagementClient } from 'https://esm.sh/@azure/arm-resources@5.2.0'
+import { ComputeManagementClient } from 'https://esm.sh/@azure/arm-compute@21.2.0'
+import { SqlManagementClient } from 'https://esm.sh/@azure/arm-sql@9.1.0'
+import { StorageManagementClient } from 'https://esm.sh/@azure/arm-storage@18.2.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
