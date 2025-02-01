@@ -20,9 +20,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
     ],
     azure: [
-      { name: "Virtual Machines", count: 32, usage: 70, icon: Server },
-      { name: "Azure SQL", count: 15, usage: 65, icon: Database },
-      { name: "Azure Disks", count: 48, usage: 55, icon: HardDrive },
+      { name: "Virtual Machines", count: 38, usage: 72, icon: Server },
+      { name: "SQL Databases", count: 8, usage: 85, icon: Database },
+      { name: "Storage Accounts", count: 56, usage: 52, icon: HardDrive },
     ],
     gcp: [
       { name: "Compute Instances", count: 29, usage: 58, icon: Server },
