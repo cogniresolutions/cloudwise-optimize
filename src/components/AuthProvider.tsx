@@ -20,46 +20,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+    } catch (error: any) {
+      console.error('Error fetching profile:', error.message);
+      toast.error("Error fetching profile");
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
-
-    async function initializeAuth() {
-      try {
-        // Get initial session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error("Error getting session:", sessionError);
-          if (mounted) {
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (mounted) {
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            await fetchProfile(session.user.id);
-          }
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("Error during initialization:", error);
-        if (mounted) {
-          setLoading(false);
-        }
+    // Get the initial session synchronously from localStorage
+    const initialSession = supabase.auth.getSession();
+    if (initialSession) {
+      const user = supabase.auth.user();
+      if (user) {
+        setUser(user);
+        fetchProfile(user.id);
       }
     }
-
-    // Initialize auth immediately
-    initializeAuth();
+    setLoading(false);
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state change:", event, session?.user ?? null);
       
-      if (!mounted) return;
-
       if (session?.user) {
         setUser(session.user);
         await fetchProfile(session.user.id);
@@ -76,26 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
   }, [navigate]);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) throw error;
-      setProfile(data);
-    } catch (error: any) {
-      console.error('Error fetching profile:', error.message);
-      toast.error("Error fetching profile");
-    }
-  };
 
   return (
     <AuthContext.Provider value={{ user, loading, profile }}>
