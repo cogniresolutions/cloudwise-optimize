@@ -4,11 +4,30 @@ import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
 import { CostRecommendations } from "@/components/dashboard/CostRecommendations";
 import { ResourceUsage } from "@/components/dashboard/ResourceUsage";
-import { Plus } from "lucide-react";
+import { Plus, LogOut } from "lucide-react";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [selectedProvider, setSelectedProvider] = useState("aws");
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      navigate("/auth");
+    } catch (error: any) {
+      toast({
+        title: "Error signing out",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   const providerData = {
     aws: {
@@ -56,9 +75,14 @@ const Index = () => {
               Monitor and optimize your multi-cloud spending
             </p>
           </div>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
-          </Button>
+          <div className="flex gap-4">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
+            </Button>
+            <Button variant="outline" onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" /> Sign Out
+            </Button>
+          </div>
         </div>
 
         {/* Cloud Provider Selector */}

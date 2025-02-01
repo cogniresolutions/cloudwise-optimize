@@ -94,6 +94,97 @@ export type Database = {
           },
         ]
       }
+      cloud_provider_connections: {
+        Row: {
+          created_at: string
+          credentials: Json
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          credentials: Json
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cloud_provider_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cloud_resources: {
+        Row: {
+          cost_data: Json | null
+          id: string
+          last_updated_at: string
+          name: string
+          provider: string
+          region: string | null
+          resource_id: string
+          resource_type: string
+          tags: Json | null
+          usage_data: Json | null
+          user_id: string
+        }
+        Insert: {
+          cost_data?: Json | null
+          id?: string
+          last_updated_at?: string
+          name: string
+          provider: string
+          region?: string | null
+          resource_id: string
+          resource_type: string
+          tags?: Json | null
+          usage_data?: Json | null
+          user_id: string
+        }
+        Update: {
+          cost_data?: Json | null
+          id?: string
+          last_updated_at?: string
+          name?: string
+          provider?: string
+          region?: string | null
+          resource_id?: string
+          resource_type?: string
+          tags?: Json | null
+          usage_data?: Json | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cloud_resources_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_sessions: {
         Row: {
           conversation_id: string | null
@@ -166,6 +257,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_recommendations: {
+        Row: {
+          ai_analysis: Json | null
+          created_at: string
+          description: string
+          id: string
+          potential_savings: number | null
+          priority: string | null
+          provider: string
+          resource_ids: Json | null
+          status: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: Json | null
+          created_at?: string
+          description: string
+          id?: string
+          potential_savings?: number | null
+          priority?: string | null
+          provider: string
+          resource_ids?: Json | null
+          status?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: Json | null
+          created_at?: string
+          description?: string
+          id?: string
+          potential_savings?: number | null
+          priority?: string | null
+          provider?: string
+          resource_ids?: Json | null
+          status?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_recommendations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
