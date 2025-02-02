@@ -7,7 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudOff } from "lucide-react";
+import { Cloud, CloudOff, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     azure: false,
     gcp: false,
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [azureCostData, setAzureCostData] = useState<any>(null);
 
   useEffect(() => {
     if (session?.user) {
@@ -48,6 +50,11 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         }
       });
       setConnectionStatus(newStatus);
+
+      // If Azure is connected, fetch cost data
+      if (newStatus.azure) {
+        fetchAzureCostData();
+      }
     } catch (error) {
       console.error('Error fetching cloud connections:', error);
       toast({
@@ -55,6 +62,30 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         title: "Error",
         description: "Failed to fetch cloud provider connections",
       });
+    }
+  };
+
+  const fetchAzureCostData = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-azure-costs');
+      
+      if (error) throw error;
+      
+      setAzureCostData(data);
+      toast({
+        title: "Success",
+        description: "Azure cost data fetched successfully",
+      });
+    } catch (error) {
+      console.error('Error fetching Azure cost data:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch Azure cost data",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,10 +127,33 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                       {details.name}
                     </span>
                   </div>
-                  <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
-                    {isConnected ? "Connected" : "Not Connected"}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
+                      {isConnected ? "Connected" : "Not Connected"}
+                    </span>
+                    {provider === 'azure' && isConnected && (
+                      <button
+                        onClick={fetchAzureCostData}
+                        className="ml-2 p-1 hover:bg-gray-100 rounded"
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Cloud className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {provider === 'azure' && isConnected && azureCostData && (
+                  <div className="mt-4 text-sm">
+                    <p>Latest Cost Data:</p>
+                    <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
+                      {JSON.stringify(azureCostData, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </Card>
             );
           })}
