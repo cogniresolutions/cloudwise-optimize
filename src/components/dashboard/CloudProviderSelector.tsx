@@ -19,6 +19,7 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
     gcp: false,
   });
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Fetch connection status on component mount and when session changes
   useEffect(() => {
@@ -27,13 +28,41 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
     }
   }, [session?.user]);
 
+  // Set up real-time subscription for connection status updates
+  useEffect(() => {
+    if (!session?.user) return;
+
+    const channel = supabase
+      .channel('cloud-connections')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cloud_provider_connections',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        () => {
+          fetchConnectionStatus();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user]);
+
   const fetchConnectionStatus = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsLoading(true);
     try {
-      console.log('Fetching connection status for user:', session?.user.id);
+      console.log('Fetching connection status for user:', session.user.id);
       const { data, error } = await supabase
         .from('cloud_provider_connections')
-        .select('provider, is_active')
-        .eq('user_id', session?.user.id);
+        .select('provider, is_active, last_sync_at')
+        .eq('user_id', session.user.id);
 
       if (error) {
         console.error('Error fetching cloud connections:', error);
@@ -41,11 +70,19 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
       }
 
       const newStatus = { aws: false, azure: false, gcp: false };
+      
+      // Check if connections are active and recently synced (within last hour)
       data?.forEach((connection) => {
         if (connection.provider in newStatus) {
-          newStatus[connection.provider as keyof typeof newStatus] = connection.is_active;
+          const lastSyncTime = new Date(connection.last_sync_at).getTime();
+          const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
+          
+          // Connection is considered active if is_active is true and last sync was within the last hour
+          newStatus[connection.provider as keyof typeof newStatus] = 
+            connection.is_active && lastSyncTime > oneHourAgo;
         }
       });
+
       console.log('Updated connection status:', newStatus);
       setConnectionStatus(newStatus);
     } catch (error) {
@@ -55,6 +92,8 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
         title: "Error",
         description: "Failed to fetch cloud provider connections",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -129,6 +168,7 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
             isConnected={connectionStatus[provider]}
             isActive={selectedProvider === provider}
             onClick={() => handleProviderClick(provider)}
+            isLoading={isLoading && selectedProvider === provider}
           />
         ))}
       </CardContent>
