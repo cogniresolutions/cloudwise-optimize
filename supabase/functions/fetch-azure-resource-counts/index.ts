@@ -45,14 +45,32 @@ serve(async (req) => {
 
     if (connectionError || !connection) {
       console.error('Error fetching Azure connection:', connectionError)
-      throw new Error('No active Azure connection found')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'No active Azure connection found' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404
+        }
+      )
     }
 
     // Validate Azure credentials
     const { credentials } = connection
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-      console.error('Invalid Azure credentials')
-      throw new Error('Invalid Azure credentials configuration')
+    if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
+      console.error('Invalid Azure credentials configuration')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid Azure credentials configuration' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      )
     }
 
     console.log('Getting Azure access token')
@@ -78,13 +96,23 @@ serve(async (req) => {
     
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('Failed to get Azure token:', tokenData)
-      throw new Error('Failed to authenticate with Azure')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Failed to authenticate with Azure',
+          details: tokenData.error_description || 'Token request failed'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
     }
 
     console.log('Successfully obtained Azure token, fetching resources')
 
-    // Fetch resources in parallel
-    const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
+    // Fetch resources in parallel with proper error handling
+    const resourceResponses = await Promise.allSettled([
       // Get VM count
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
@@ -114,20 +142,25 @@ serve(async (req) => {
       )
     ])
 
-    // Check if any requests failed
-    if (!vmResponse.ok || !sqlResponse.ok || !storageResponse.ok) {
-      console.error('Error fetching resources:', {
-        vm: vmResponse.status,
-        sql: sqlResponse.status,
-        storage: storageResponse.status
+    // Process responses and handle errors
+    const [vmResponse, sqlResponse, storageResponse] = await Promise.all(
+      resourceResponses.map(async (response) => {
+        if (response.status === 'rejected') {
+          console.error('Resource fetch failed:', response.reason)
+          return { value: { json: async () => ({ value: [] }) } }
+        }
+        if (!response.value.ok) {
+          console.error('Resource fetch error:', await response.value.text())
+          return { value: { json: async () => ({ value: [] }) } }
+        }
+        return response
       })
-      throw new Error('Failed to fetch Azure resources')
-    }
+    )
 
     const [vmData, sqlData, storageData] = await Promise.all([
-      vmResponse.json(),
-      sqlResponse.json(),
-      storageResponse.json()
+      vmResponse.value.json(),
+      sqlResponse.value.json(),
+      storageResponse.value.json()
     ])
 
     console.log('Successfully fetched Azure resources')
@@ -152,13 +185,17 @@ serve(async (req) => {
     ]
 
     // Update last sync timestamp
-    await supabaseClient
+    const { error: updateError } = await supabaseClient
       .from('cloud_provider_connections')
       .update({ 
         last_sync_at: new Date().toISOString(),
         is_active: true
       })
       .eq('id', connection.id)
+
+    if (updateError) {
+      console.error('Error updating last sync timestamp:', updateError)
+    }
 
     // Update resource counts in database
     const { error: upsertError } = await supabaseClient
@@ -175,7 +212,17 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error('Error upserting resource counts:', upsertError)
-      throw upsertError
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Failed to update resource counts in database',
+          details: upsertError.message
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
     }
 
     console.log('Successfully updated resource counts in database')
@@ -198,14 +245,15 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message || 'An unexpected error occurred'
+        error: error.message || 'An unexpected error occurred',
+        details: error.stack
       }),
       { 
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json' 
         },
-        status: error.message.includes('Unauthorized') ? 401 : 400
+        status: error.message.includes('Unauthorized') ? 401 : 500
       }
     )
   }
