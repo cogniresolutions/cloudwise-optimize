@@ -14,8 +14,18 @@ export default function Auth() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,8 +34,8 @@ export default function Auth() {
     
     try {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: formData.email,
+        password: formData.password,
       });
 
       if (error) throw error;
@@ -53,8 +63,8 @@ export default function Auth() {
     
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: formData.email,
+        password: formData.password,
       });
 
       if (error) throw error;
@@ -98,17 +108,19 @@ export default function Auth() {
                 <div className="space-y-2">
                   <Input
                     type="email"
+                    name="email"
                     placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={formData.email}
+                    onChange={handleInputChange}
                     disabled={isLoading}
                     required
                   />
                   <Input
                     type="password"
+                    name="password"
                     placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={formData.password}
+                    onChange={handleInputChange}
                     disabled={isLoading}
                     required
                   />
@@ -130,17 +142,19 @@ export default function Auth() {
                 <div className="space-y-2">
                   <Input
                     type="email"
+                    name="email"
                     placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={formData.email}
+                    onChange={handleInputChange}
                     disabled={isLoading}
                     required
                   />
                   <Input
                     type="password"
+                    name="password"
                     placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={formData.password}
+                    onChange={handleInputChange}
                     disabled={isLoading}
                     required
                   />
