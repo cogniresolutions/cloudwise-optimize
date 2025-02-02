@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Database, HardDrive } from "lucide-react";
+import { Server, Database, HardDrive, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ResourceType {
   name: string;
@@ -13,30 +17,168 @@ interface ResourceUsageProps {
 }
 
 export function ResourceUsage({ provider }: ResourceUsageProps) {
-  const resourceData: { [key: string]: ResourceType[] } = {
-    aws: [
-      { name: "EC2 Instances", count: 45, usage: 65, icon: Server },
-      { name: "RDS Databases", count: 12, usage: 78, icon: Database },
-      { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
-    ],
-    azure: [
-      { name: "Virtual Machines", count: 38, usage: 72, icon: Server },
-      { name: "SQL Databases", count: 8, usage: 85, icon: Database },
-      { name: "Storage Accounts", count: 56, usage: 52, icon: HardDrive },
-    ],
-    gcp: [
-      { name: "Compute Instances", count: 29, usage: 58, icon: Server },
-      { name: "Cloud SQL", count: 6, usage: 81, icon: Database },
-      { name: "Persistent Disks", count: 42, usage: 48, icon: HardDrive },
-    ],
+  const { toast } = useToast();
+  const { session } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [resources, setResources] = useState<ResourceType[]>([]);
+
+  const fetchResourceCounts = async () => {
+    if (provider !== 'azure') return;
+    
+    setIsLoading(true);
+    try {
+      // First try to fetch from Supabase
+      const { data: resourceCounts, error } = await supabase
+        .from('azure_resource_counts')
+        .select('*')
+        .order('last_updated_at', { ascending: false })
+        .limit(3);
+
+      if (error) throw error;
+
+      // If data is stale (older than 5 minutes) or doesn't exist, fetch new data
+      const isStale = !resourceCounts?.length || 
+        new Date().getTime() - new Date(resourceCounts[0].last_updated_at).getTime() > 5 * 60 * 1000;
+
+      if (isStale) {
+        const { data, error } = await supabase.functions.invoke('fetch-azure-resource-counts');
+        if (error) throw error;
+        
+        // Map the response to our resource format
+        const mappedResources = data.map((resource: any) => ({
+          name: resource.resource_type,
+          count: resource.count,
+          usage: resource.usage_percentage,
+          icon: getIconForResourceType(resource.resource_type),
+        }));
+        
+        setResources(mappedResources);
+      } else {
+        // Map the Supabase data to our resource format
+        const mappedResources = resourceCounts.map((resource) => ({
+          name: resource.resource_type,
+          count: resource.count,
+          usage: resource.usage_percentage,
+          icon: getIconForResourceType(resource.resource_type),
+        }));
+        
+        setResources(mappedResources);
+      }
+    } catch (error) {
+      console.error('Error fetching resource counts:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch resource counts",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const resources = resourceData[provider] || resourceData.aws;
+  const getIconForResourceType = (type: string): React.ElementType => {
+    switch (type) {
+      case 'Virtual Machines':
+        return Server;
+      case 'SQL Databases':
+        return Database;
+      case 'Storage Accounts':
+        return HardDrive;
+      default:
+        return Server;
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user && provider === 'azure') {
+      fetchResourceCounts();
+    }
+  }, [session?.user, provider]);
+
+  // Set up real-time subscription for resource count updates
+  useEffect(() => {
+    if (!session?.user || provider !== 'azure') return;
+
+    const channel = supabase
+      .channel('azure-resource-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'azure_resource_counts',
+        },
+        (payload) => {
+          console.log('Resource count updated:', payload);
+          fetchResourceCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user, provider]);
+
+  if (provider !== 'azure') {
+    // Return mock data for other providers
+    const mockData = {
+      aws: [
+        { name: "EC2 Instances", count: 45, usage: 65, icon: Server },
+        { name: "RDS Databases", count: 12, usage: 78, icon: Database },
+        { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
+      ],
+      gcp: [
+        { name: "Compute Instances", count: 29, usage: 58, icon: Server },
+        { name: "Cloud SQL", count: 6, usage: 81, icon: Database },
+        { name: "Persistent Disks", count: 42, usage: 48, icon: HardDrive },
+      ],
+    };
+    return (
+      <Card className="col-span-4 animate-fade-in">
+        <CardHeader>
+          <CardTitle>Resource Usage</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-6">
+            {mockData[provider as keyof typeof mockData].map((resource) => {
+              const Icon = resource.icon;
+              return (
+                <div key={resource.name} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{resource.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {resource.count} resources
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${resource.usage}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{resource.usage}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="col-span-4 animate-fade-in">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Resource Usage</CardTitle>
+        {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
       </CardHeader>
       <CardContent>
         <div className="grid gap-6">
