@@ -21,6 +21,7 @@ serve(async (req) => {
     // Get the user ID from the request authorization header
     const authHeader = req.headers.get('authorization')?.split(' ')[1]
     if (!authHeader) {
+      console.error('No authorization header provided')
       throw new Error('No authorization header')
     }
 
