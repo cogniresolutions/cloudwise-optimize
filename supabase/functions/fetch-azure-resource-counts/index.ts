@@ -7,6 +7,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -49,15 +50,25 @@ serve(async (req) => {
 
     if (!connections) {
       console.error('No active Azure connection found for user:', user.id)
-      throw new Error('No active Azure connection found')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'No active Azure connection found'
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 404
+        }
+      )
     }
 
+    // Validate credentials
     if (!connections.credentials?.subscriptionId) {
       console.error('Invalid Azure credentials - missing subscriptionId')
       throw new Error('Invalid Azure credentials')
     }
 
-    console.log('Found active Azure connection')
+    console.log('Found active Azure connection, fetching token')
 
     // Get Azure access token
     const tokenResponse = await fetch(
@@ -83,7 +94,20 @@ serve(async (req) => {
       throw new Error('Failed to authenticate with Azure')
     }
 
-    console.log('Successfully obtained Azure token')
+    console.log('Successfully obtained Azure token, fetching resources')
+
+    // Update last sync timestamp
+    const { error: updateError } = await supabaseClient
+      .from('cloud_provider_connections')
+      .update({ 
+        last_sync_at: new Date().toISOString(),
+        is_active: true
+      })
+      .eq('id', connections.id)
+
+    if (updateError) {
+      console.error('Error updating connection timestamp:', updateError)
+    }
 
     // Fetch resources in parallel
     const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
@@ -115,6 +139,16 @@ serve(async (req) => {
         }
       )
     ])
+
+    // Check if any requests failed
+    if (!vmResponse.ok || !sqlResponse.ok || !storageResponse.ok) {
+      console.error('Error fetching resources:', {
+        vm: vmResponse.status,
+        sql: sqlResponse.status,
+        storage: storageResponse.status
+      })
+      throw new Error('Failed to fetch Azure resources')
+    }
 
     const [vmData, sqlData, storageData] = await Promise.all([
       vmResponse.json(),
