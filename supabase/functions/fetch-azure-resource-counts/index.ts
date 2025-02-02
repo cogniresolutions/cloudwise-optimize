@@ -18,20 +18,41 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get Azure credentials
+    // Get the user ID from the request authorization header
+    const authHeader = req.headers.get('authorization')?.split(' ')[1]
+    if (!authHeader) {
+      throw new Error('No authorization header')
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
+    if (userError || !user) {
+      console.error('Error getting user:', userError)
+      throw new Error('Unauthorized')
+    }
+
+    console.log('Fetching Azure connection for user:', user.id)
+
+    // Get Azure credentials with explicit user_id check
     const { data: connections, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
       .eq('provider', 'azure')
       .eq('is_active', true)
+      .eq('user_id', user.id)
       .single()
 
     if (connectionError) {
       console.error('Error fetching Azure connection:', connectionError)
+      throw new Error('Error fetching Azure connection')
+    }
+
+    if (!connections) {
+      console.error('No active Azure connection found for user:', user.id)
       throw new Error('No active Azure connection found')
     }
 
-    if (!connections?.credentials?.subscriptionId) {
+    if (!connections.credentials?.subscriptionId) {
+      console.error('Invalid Azure credentials - missing subscriptionId')
       throw new Error('Invalid Azure credentials')
     }
 
@@ -126,7 +147,7 @@ serve(async (req) => {
       .from('azure_resource_counts')
       .upsert(
         resourceCounts.map(resource => ({
-          user_id: connections.user_id,
+          user_id: user.id,
           resource_type: resource.resource_type,
           count: resource.count,
           usage_percentage: resource.usage_percentage,
