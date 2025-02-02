@@ -59,7 +59,7 @@ const Index = () => {
             </p>
           </div>
           <Button onClick={() => setShowConnectionSheet(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Connect Cloud Provider
+            <Plus className="mr-2 h-4 w-4" /> View Cloud Connections
           </Button>
         </div>
 
@@ -73,7 +73,6 @@ const Index = () => {
         <CloudConnectionSheet
           isOpen={showConnectionSheet}
           onOpenChange={setShowConnectionSheet}
-          onProviderSelect={setSelectedProvider}
         />
 
         {/* Cost Overview Cards */}
