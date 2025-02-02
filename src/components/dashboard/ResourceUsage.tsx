@@ -27,6 +27,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     
     setIsLoading(true);
     try {
+      console.log('Fetching Azure resource counts...');
+      
       // First try to fetch from Supabase
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
@@ -34,18 +36,31 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         .order('last_updated_at', { ascending: false })
         .limit(3);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching from Supabase:', error);
+        throw error;
+      }
 
       // If data is stale (older than 5 minutes) or doesn't exist, fetch new data
       const isStale = !resourceCounts?.length || 
         new Date().getTime() - new Date(resourceCounts[0].last_updated_at).getTime() > 5 * 60 * 1000;
 
       if (isStale) {
+        console.log('Data is stale, fetching from Azure...');
         const { data, error } = await supabase.functions.invoke('fetch-azure-resource-counts');
-        if (error) throw error;
+        
+        if (error) {
+          console.error('Error invoking function:', error);
+          throw error;
+        }
+
+        if (!data?.data) {
+          console.error('Invalid response from function:', data);
+          throw new Error('Invalid response from server');
+        }
         
         // Map the response to our resource format
-        const mappedResources = data.map((resource: any) => ({
+        const mappedResources = data.data.map((resource: any) => ({
           name: resource.resource_type,
           count: resource.count,
           usage: resource.usage_percentage,
@@ -53,7 +68,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         }));
         
         setResources(mappedResources);
+        console.log('Successfully updated resources from Azure');
       } else {
+        console.log('Using cached data from Supabase');
         // Map the Supabase data to our resource format
         const mappedResources = resourceCounts.map((resource) => ({
           name: resource.resource_type,
@@ -65,11 +82,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         setResources(mappedResources);
       }
     } catch (error) {
-      console.error('Error fetching resource counts:', error);
+      console.error('Error in fetchResourceCounts:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch resource counts",
+        description: error instanceof Error ? error.message : "Failed to fetch resource counts",
       });
     } finally {
       setIsLoading(false);

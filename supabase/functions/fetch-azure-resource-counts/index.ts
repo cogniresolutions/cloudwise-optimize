@@ -12,6 +12,7 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Starting fetch-azure-resource-counts function')
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -25,9 +26,16 @@ serve(async (req) => {
       .eq('is_active', true)
       .single()
 
-    if (connectionError || !connections) {
+    if (connectionError) {
+      console.error('Error fetching Azure connection:', connectionError)
       throw new Error('No active Azure connection found')
     }
+
+    if (!connections?.credentials?.subscriptionId) {
+      throw new Error('Invalid Azure credentials')
+    }
+
+    console.log('Found active Azure connection')
 
     // Get Azure access token
     const tokenResponse = await fetch(
@@ -48,38 +56,51 @@ serve(async (req) => {
 
     const tokenData = await tokenResponse.json()
     
-    // Fetch VM counts
-    const vmResponse = await fetch(
-      `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
-      {
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`,
-        },
-      }
-    )
-    const vmData = await vmResponse.json()
-    
-    // Fetch SQL Database counts
-    const sqlResponse = await fetch(
-      `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-02-01-preview`,
-      {
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`,
-        },
-      }
-    )
-    const sqlData = await sqlResponse.json()
-    
-    // Fetch Storage Account counts
-    const storageResponse = await fetch(
-      `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01`,
-      {
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`,
-        },
-      }
-    )
-    const storageData = await storageResponse.json()
+    if (!tokenData.access_token) {
+      console.error('Failed to get Azure token:', tokenData)
+      throw new Error('Failed to authenticate with Azure')
+    }
+
+    console.log('Successfully obtained Azure token')
+
+    // Fetch resources in parallel
+    const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
+      // Get VM count
+      fetch(
+        `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
+        {
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+          },
+        }
+      ),
+      // Get SQL Database count
+      fetch(
+        `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-02-01-preview`,
+        {
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+          },
+        }
+      ),
+      // Get Storage Account count
+      fetch(
+        `https://management.azure.com/subscriptions/${connections.credentials.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01`,
+        {
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+          },
+        }
+      )
+    ])
+
+    const [vmData, sqlData, storageData] = await Promise.all([
+      vmResponse.json(),
+      sqlResponse.json(),
+      storageResponse.json()
+    ])
+
+    console.log('Successfully fetched Azure resources')
 
     // Calculate resource counts
     const resourceCounts = [
@@ -101,17 +122,24 @@ serve(async (req) => {
     ]
 
     // Update resource counts in Supabase
-    for (const resource of resourceCounts) {
-      await supabaseClient
-        .from('azure_resource_counts')
-        .upsert({
+    const { error: upsertError } = await supabaseClient
+      .from('azure_resource_counts')
+      .upsert(
+        resourceCounts.map(resource => ({
           user_id: connections.user_id,
           resource_type: resource.resource_type,
           count: resource.count,
           usage_percentage: resource.usage_percentage,
           last_updated_at: new Date().toISOString(),
-        })
+        }))
+      )
+
+    if (upsertError) {
+      console.error('Error upserting resource counts:', upsertError)
+      throw upsertError
     }
+
+    console.log('Successfully updated resource counts in database')
 
     return new Response(
       JSON.stringify({ success: true, data: resourceCounts }),
@@ -119,10 +147,16 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error in fetch-azure-resource-counts:', error)
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      JSON.stringify({ 
+        success: false, 
+        error: error.message || 'An unexpected error occurred'
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, 
+        status: 400 
+      }
     )
   }
 })
