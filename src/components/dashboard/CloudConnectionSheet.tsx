@@ -101,9 +101,14 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     }
 
     setIsDisconnecting(provider);
+    
+    // Optimistically update UI
+    setConnectionStatus(prev => ({
+      ...prev,
+      [provider]: false
+    }));
+
     try {
-      console.log(`Attempting to disconnect from ${provider}...`);
-      
       const { error } = await supabase
         .from('cloud_provider_connections')
         .update({ 
@@ -112,19 +117,9 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           last_sync_at: new Date().toISOString()
         })
         .eq('user_id', session.user.id)
-        .eq('provider', provider)
-        .select();
+        .eq('provider', provider);
 
-      if (error) {
-        console.error('Supabase update error:', error);
-        throw error;
-      }
-
-      // Update local state after successful disconnection
-      setConnectionStatus(prev => ({
-        ...prev,
-        [provider]: false
-      }));
+      if (error) throw error;
 
       // Clear Azure cost data if disconnecting from Azure
       if (provider === 'azure') {
@@ -138,11 +133,13 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
 
     } catch (error) {
       console.error(`Error disconnecting from ${provider}:`, error);
-      // Revert local state on error
+      
+      // Revert the optimistic update on error
       setConnectionStatus(prev => ({
         ...prev,
         [provider]: true
       }));
+      
       toast({
         variant: "destructive",
         title: "Error",
@@ -150,7 +147,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       });
     } finally {
       setIsDisconnecting(null);
-      // Refresh the connection status
+      // Refresh connection status to ensure UI is in sync with server
       await fetchConnectionStatus();
     }
   };
