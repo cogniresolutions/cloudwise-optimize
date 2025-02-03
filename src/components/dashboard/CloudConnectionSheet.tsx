@@ -99,16 +99,11 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       });
       return;
     }
-    
+
     setIsDisconnecting(provider);
     try {
-      // First, update the local state to show disconnection in progress
-      setConnectionStatus(prev => ({
-        ...prev,
-        [provider]: false
-      }));
-
-      // Then, update the database
+      console.log(`Attempting to disconnect from ${provider}...`);
+      
       const { error } = await supabase
         .from('cloud_provider_connections')
         .update({ 
@@ -117,16 +112,19 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           last_sync_at: new Date().toISOString()
         })
         .eq('user_id', session.user.id)
-        .eq('provider', provider);
+        .eq('provider', provider)
+        .select();
 
       if (error) {
-        // If there's an error, revert the local state
-        setConnectionStatus(prev => ({
-          ...prev,
-          [provider]: true
-        }));
+        console.error('Supabase update error:', error);
         throw error;
       }
+
+      // Update local state after successful disconnection
+      setConnectionStatus(prev => ({
+        ...prev,
+        [provider]: false
+      }));
 
       // Clear Azure cost data if disconnecting from Azure
       if (provider === 'azure') {
@@ -138,10 +136,13 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         description: `Successfully disconnected from ${provider.toUpperCase()}`,
       });
 
-      // Refresh the connection status
-      await fetchConnectionStatus();
     } catch (error) {
       console.error(`Error disconnecting from ${provider}:`, error);
+      // Revert local state on error
+      setConnectionStatus(prev => ({
+        ...prev,
+        [provider]: true
+      }));
       toast({
         variant: "destructive",
         title: "Error",
@@ -149,6 +150,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       });
     } finally {
       setIsDisconnecting(null);
+      // Refresh the connection status
+      await fetchConnectionStatus();
     }
   };
 
