@@ -32,23 +32,37 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    console.log('Fetching Azure connection for user:', user.id)
+    console.log('Fetching Azure connections for user:', user.id)
 
-    // Get Azure credentials for the user
-    const { data: connection, error: connectionError } = await supabaseClient
+    // Get Azure credentials for the user - now handling multiple connections
+    const { data: connections, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
       .eq('provider', 'azure')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single()
 
-    if (connectionError || !connection) {
-      console.error('Error fetching Azure connection:', connectionError)
+    if (connectionError) {
+      console.error('Error fetching Azure connections:', connectionError)
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'No active Azure connection found' 
+          error: 'Error fetching Azure connections',
+          details: connectionError
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
+
+    if (!connections || connections.length === 0) {
+      console.log('No active Azure connections found for user:', user.id)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'No active Azure connections found' 
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -56,6 +70,10 @@ serve(async (req) => {
         }
       )
     }
+
+    // Use the first active connection
+    const connection = connections[0]
+    console.log('Using Azure connection:', connection.id)
 
     // Validate Azure credentials
     const { credentials } = connection
