@@ -145,15 +145,18 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
     }
   };
 
-  const handleProviderClick = async (provider: string) => {
+  const handleProviderClick = (provider: string) => {
     if (isDisconnecting === provider) return;
     
     if (connectionStatus[provider as keyof typeof connectionStatus]) {
       onSelect(provider);
-    } else if (provider === 'azure' && !connectionStatus.azure) {
-      await connectToAzure();
     } else {
+      // For now, just select the provider - connection functionality will be handled separately
       onSelect(provider);
+      toast({
+        title: "Info",
+        description: `Please use the cloud connection sheet to connect to ${provider.toUpperCase()}`,
+      });
     }
   };
 
@@ -170,7 +173,11 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
             isActive={selectedProvider === provider}
             onClick={() => handleProviderClick(provider)}
             isLoading={isLoading || isDisconnecting === provider}
-            onDisconnect={() => disconnectProvider(provider)}
+            onDisconnect={
+              connectionStatus[provider] 
+                ? () => disconnectProvider(provider)
+                : undefined
+            }
           />
         ))}
       </CardContent>
