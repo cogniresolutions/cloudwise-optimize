@@ -22,14 +22,12 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
   const [isLoading, setIsLoading] = useState(true);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
 
-  // Fetch connection status on component mount and when session changes
   useEffect(() => {
     if (session?.user) {
       fetchConnectionStatus();
     }
   }, [session?.user]);
 
-  // Set up real-time subscription for connection status updates
   useEffect(() => {
     if (!session?.user) return;
 
@@ -72,13 +70,11 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
 
       const newStatus = { aws: false, azure: false, gcp: false };
       
-      // Check if connections are active and recently synced (within last hour)
       data?.forEach((connection) => {
         if (connection.provider in newStatus) {
           const lastSyncTime = new Date(connection.last_sync_at).getTime();
           const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
           
-          // Connection is considered active if is_active is true and last sync was within the last hour
           newStatus[connection.provider as keyof typeof newStatus] = 
             connection.is_active && lastSyncTime > oneHourAgo;
         }
@@ -122,17 +118,22 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
 
       if (error) throw error;
 
-      await fetchConnectionStatus();
+      // Update local connection status immediately
+      setConnectionStatus(prev => ({
+        ...prev,
+        [provider]: false
+      }));
+
+      // If the disconnected provider was selected, select another connected provider or default to 'aws'
+      if (selectedProvider === provider) {
+        const connectedProvider = Object.entries(connectionStatus).find(([key, isConnected]) => key !== provider && isConnected)?.[0];
+        onSelect(connectedProvider || 'aws');
+      }
+
       toast({
         title: "Success",
         description: `Successfully disconnected from ${provider.toUpperCase()}`,
       });
-      
-      // If the disconnected provider was selected, select another connected provider or default to 'aws'
-      if (selectedProvider === provider) {
-        const connectedProvider = Object.entries(connectionStatus).find(([_, isConnected]) => isConnected)?.[0];
-        onSelect(connectedProvider || 'aws');
-      }
     } catch (error) {
       console.error(`Error disconnecting from ${provider}:`, error);
       toast({
@@ -142,6 +143,8 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
       });
     } finally {
       setIsDisconnecting(null);
+      // Fetch the latest connection status
+      await fetchConnectionStatus();
     }
   };
 
@@ -151,7 +154,6 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
     if (connectionStatus[provider as keyof typeof connectionStatus]) {
       onSelect(provider);
     } else {
-      // For now, just select the provider - connection functionality will be handled separately
       onSelect(provider);
       toast({
         title: "Info",
