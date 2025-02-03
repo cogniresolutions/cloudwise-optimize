@@ -43,7 +43,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       console.log('Fetching connection status for user:', session.user.id);
       const { data, error } = await supabase
         .from('cloud_provider_connections')
-        .select('provider, is_active, last_sync_at')
+        .select('provider, is_active, last_sync_at, credentials')
         .eq('user_id', session.user.id);
 
       if (error) {
@@ -59,14 +59,13 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
           
           newStatus[connection.provider as keyof typeof newStatus] = 
-            connection.is_active && lastSyncTime > oneHourAgo;
+            connection.is_active && lastSyncTime > oneHourAgo && connection.credentials !== null;
         }
       });
 
       console.log('Updated connection status:', newStatus);
       setConnectionStatus(newStatus);
 
-      // If Azure is connected, fetch cost data
       if (newStatus.azure) {
         fetchAzureCostData();
       }
@@ -118,11 +117,12 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     console.log(`Attempting to disconnect from ${provider}...`);
 
     try {
+      // Update the connection record to clear credentials and mark as inactive
       const { error } = await supabase
         .from('cloud_provider_connections')
         .update({ 
           is_active: false,
-          credentials: null,
+          credentials: null,  // Clear credentials when disconnecting
           last_sync_at: new Date().toISOString()
         })
         .eq('user_id', session.user.id)
