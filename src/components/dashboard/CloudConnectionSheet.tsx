@@ -7,7 +7,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Card } from "@/components/ui/card";
-import { Cloud, CloudOff, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Cloud, CloudOff, Loader2, Unlink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,6 +28,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   });
   const [isLoading, setIsLoading] = useState(false);
   const [azureCostData, setAzureCostData] = useState<any>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user) {
@@ -51,7 +53,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       });
       setConnectionStatus(newStatus);
 
-      // If Azure is connected, fetch cost data
       if (newStatus.azure) {
         fetchAzureCostData();
       }
@@ -89,6 +90,40 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     }
   };
 
+  const disconnectProvider = async (provider: string) => {
+    if (!session?.user?.id) return;
+    
+    setIsDisconnecting(provider);
+    try {
+      const { error } = await supabase
+        .from('cloud_provider_connections')
+        .update({ 
+          is_active: false,
+          credentials: null,
+          last_sync_at: new Date().toISOString()
+        })
+        .eq('user_id', session.user.id)
+        .eq('provider', provider);
+
+      if (error) throw error;
+
+      await fetchConnectionStatus();
+      toast({
+        title: "Success",
+        description: `Successfully disconnected from ${provider.toUpperCase()}`,
+      });
+    } catch (error) {
+      console.error(`Error disconnecting from ${provider}:`, error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to disconnect from ${provider.toUpperCase()}`,
+      });
+    } finally {
+      setIsDisconnecting(null);
+    }
+  };
+
   const getProviderDetails = (provider: string) => {
     switch (provider) {
       case "aws":
@@ -114,6 +149,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         <div className="grid grid-cols-1 gap-4 mt-6">
           {Object.entries(connectionStatus).map(([provider, isConnected]) => {
             const details = getProviderDetails(provider);
+            const isDisconnectingThis = isDisconnecting === provider;
+            
             return (
               <Card key={provider} className="p-4">
                 <div className="flex items-center justify-between">
@@ -131,18 +168,38 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                     <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
                       {isConnected ? "Connected" : "Not Connected"}
                     </span>
-                    {provider === 'azure' && isConnected && (
-                      <button
-                        onClick={fetchAzureCostData}
-                        className="ml-2 p-1 hover:bg-gray-100 rounded"
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Cloud className="h-4 w-4" />
+                    {isConnected && (
+                      <div className="flex items-center space-x-2">
+                        {provider === 'azure' && (
+                          <button
+                            onClick={fetchAzureCostData}
+                            className="ml-2 p-1 hover:bg-gray-100 rounded"
+                            disabled={isLoading || isDisconnectingThis}
+                          >
+                            {isLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Cloud className="h-4 w-4" />
+                            )}
+                          </button>
                         )}
-                      </button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => disconnectProvider(provider)}
+                          disabled={isDisconnectingThis}
+                          className="ml-2"
+                        >
+                          {isDisconnectingThis ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <Unlink className="h-4 w-4 mr-1" />
+                              Disconnect
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

@@ -20,6 +20,7 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
   });
   const [isConnecting, setIsConnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
 
   // Fetch connection status on component mount and when session changes
   useEffect(() => {
@@ -97,59 +98,59 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
     }
   };
 
-  const connectToAzure = async () => {
+  const disconnectProvider = async (provider: string) => {
     if (!session?.user?.id) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "You must be logged in to connect to Azure",
+        description: "You must be logged in to disconnect from a provider",
       });
       return;
     }
 
-    setIsConnecting(true);
+    setIsDisconnecting(provider);
     try {
-      // For demo purposes, we'll use mock credentials
-      // In a real app, you would integrate with Azure OAuth
-      const mockAzureCredentials = {
-        subscriptionId: "mock-subscription-id",
-        tenantId: "mock-tenant-id",
-        clientId: "mock-client-id",
-        clientSecret: "mock-client-secret"
-      };
-
-      const { error: upsertError } = await supabase
+      const { error } = await supabase
         .from('cloud_provider_connections')
-        .upsert({
-          user_id: session.user.id,
-          provider: 'azure',
-          credentials: mockAzureCredentials,
-          is_active: true,
+        .update({ 
+          is_active: false,
+          credentials: null,
           last_sync_at: new Date().toISOString()
-        });
+        })
+        .eq('user_id', session.user.id)
+        .eq('provider', provider);
 
-      if (upsertError) throw upsertError;
+      if (error) throw error;
 
       await fetchConnectionStatus();
       toast({
         title: "Success",
-        description: "Successfully connected to Azure",
+        description: `Successfully disconnected from ${provider.toUpperCase()}`,
       });
-      onSelect('azure');
+      
+      // If the disconnected provider was selected, select another connected provider or default to 'aws'
+      if (selectedProvider === provider) {
+        const connectedProvider = Object.entries(connectionStatus).find(([_, isConnected]) => isConnected)?.[0];
+        onSelect(connectedProvider || 'aws');
+      }
     } catch (error) {
-      console.error('Error connecting to Azure:', error);
+      console.error(`Error disconnecting from ${provider}:`, error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to connect to Azure",
+        description: `Failed to disconnect from ${provider.toUpperCase()}`,
       });
     } finally {
-      setIsConnecting(false);
+      setIsDisconnecting(null);
     }
   };
 
   const handleProviderClick = async (provider: string) => {
-    if (provider === 'azure' && !connectionStatus.azure) {
+    if (isDisconnecting === provider) return;
+    
+    if (connectionStatus[provider as keyof typeof connectionStatus]) {
+      onSelect(provider);
+    } else if (provider === 'azure' && !connectionStatus.azure) {
       await connectToAzure();
     } else {
       onSelect(provider);
@@ -168,7 +169,8 @@ export function CloudProviderSelector({ selectedProvider, onSelect }: CloudProvi
             isConnected={connectionStatus[provider]}
             isActive={selectedProvider === provider}
             onClick={() => handleProviderClick(provider)}
-            isLoading={isLoading && selectedProvider === provider}
+            isLoading={isLoading || isDisconnecting === provider}
+            onDisconnect={() => disconnectProvider(provider)}
           />
         ))}
       </CardContent>
