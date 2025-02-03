@@ -37,22 +37,36 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   }, [session?.user]);
 
   const fetchConnectionStatus = async () => {
+    if (!session?.user?.id) return;
+    
     try {
+      console.log('Fetching connection status for user:', session.user.id);
       const { data, error } = await supabase
         .from('cloud_provider_connections')
-        .select('provider, is_active')
-        .eq('user_id', session?.user.id);
+        .select('provider, is_active, last_sync_at')
+        .eq('user_id', session.user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching cloud connections:', error);
+        throw error;
+      }
 
       const newStatus = { aws: false, azure: false, gcp: false };
-      data.forEach((connection) => {
+      
+      data?.forEach((connection) => {
         if (connection.provider in newStatus) {
-          newStatus[connection.provider as keyof typeof newStatus] = connection.is_active;
+          const lastSyncTime = new Date(connection.last_sync_at).getTime();
+          const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
+          
+          newStatus[connection.provider as keyof typeof newStatus] = 
+            connection.is_active && lastSyncTime > oneHourAgo;
         }
       });
+
+      console.log('Updated connection status:', newStatus);
       setConnectionStatus(newStatus);
 
+      // If Azure is connected, fetch cost data
       if (newStatus.azure) {
         fetchAzureCostData();
       }
@@ -113,7 +127,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         })
         .eq('user_id', session.user.id)
         .eq('provider', provider)
-        .select('*');
+        .select();
 
       if (error) {
         console.error('Supabase update error:', error);
@@ -135,7 +149,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         title: "Success",
         description: `Successfully disconnected from ${provider.toUpperCase()}`,
       });
-
     } catch (error) {
       console.error(`Error disconnecting from ${provider}:`, error);
       toast({
