@@ -91,10 +91,24 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   };
 
   const disconnectProvider = async (provider: string) => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to disconnect from a provider",
+      });
+      return;
+    }
     
     setIsDisconnecting(provider);
     try {
+      // First, update the local state to show disconnection in progress
+      setConnectionStatus(prev => ({
+        ...prev,
+        [provider]: false
+      }));
+
+      // Then, update the database
       const { error } = await supabase
         .from('cloud_provider_connections')
         .update({ 
@@ -105,13 +119,27 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         .eq('user_id', session.user.id)
         .eq('provider', provider);
 
-      if (error) throw error;
+      if (error) {
+        // If there's an error, revert the local state
+        setConnectionStatus(prev => ({
+          ...prev,
+          [provider]: true
+        }));
+        throw error;
+      }
 
-      await fetchConnectionStatus();
+      // Clear Azure cost data if disconnecting from Azure
+      if (provider === 'azure') {
+        setAzureCostData(null);
+      }
+
       toast({
         title: "Success",
         description: `Successfully disconnected from ${provider.toUpperCase()}`,
       });
+
+      // Refresh the connection status
+      await fetchConnectionStatus();
     } catch (error) {
       console.error(`Error disconnecting from ${provider}:`, error);
       toast({
