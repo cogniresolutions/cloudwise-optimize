@@ -91,7 +91,7 @@ serve(async (req) => {
       )
     }
 
-    // Validate each required credential field
+    // Validate each required credential field and format
     const requiredFields = ['clientId', 'clientSecret', 'tenantId', 'subscriptionId']
     const missingFields = requiredFields.filter(field => !credentials[field])
     
@@ -101,6 +101,21 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: `Invalid Azure credentials configuration - missing fields: ${missingFields.join(', ')}` 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      )
+    }
+
+    // Validate client secret format (should be a long string, not a UUID-like ID)
+    if (credentials.clientSecret.length < 32 || credentials.clientSecret.includes('-')) {
+      console.error('Invalid client secret format - appears to be an ID instead of the secret value')
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid client secret format. Please provide the actual secret value, not the secret ID.' 
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
