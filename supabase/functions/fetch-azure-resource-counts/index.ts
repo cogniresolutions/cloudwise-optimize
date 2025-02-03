@@ -75,14 +75,32 @@ serve(async (req) => {
     const connection = connections[0]
     console.log('Using Azure connection:', connection.id)
 
-    // Validate Azure credentials
+    // Validate Azure credentials structure
     const { credentials } = connection
-    if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
-      console.error('Invalid Azure credentials configuration')
+    if (!credentials) {
+      console.error('No credentials found in connection')
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Invalid Azure credentials configuration' 
+          error: 'Invalid Azure credentials configuration - missing credentials' 
+        }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      )
+    }
+
+    // Validate each required credential field
+    const requiredFields = ['clientId', 'clientSecret', 'tenantId', 'subscriptionId']
+    const missingFields = requiredFields.filter(field => !credentials[field])
+    
+    if (missingFields.length > 0) {
+      console.error('Missing required Azure credentials:', missingFields)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Invalid Azure credentials configuration - missing fields: ${missingFields.join(', ')}` 
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -93,7 +111,7 @@ serve(async (req) => {
 
     console.log('Getting Azure access token')
 
-    // Get Azure access token
+    // Get Azure access token with detailed error handling
     const tokenResponse = await fetch(
       `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
       {
