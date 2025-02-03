@@ -29,6 +29,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   const [isLoading, setIsLoading] = useState(false);
   const [azureCostData, setAzureCostData] = useState<any>(null);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user) {
@@ -76,6 +77,75 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         title: "Error",
         description: "Failed to fetch cloud provider connections",
       });
+    }
+  };
+
+  const connectProvider = async (provider: string) => {
+    if (!session?.user?.id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to connect to a provider",
+      });
+      return;
+    }
+
+    setIsConnecting(provider);
+    try {
+      let credentials = null;
+      
+      if (provider === 'azure') {
+        credentials = {
+          clientId: prompt("Enter Azure Client ID:"),
+          clientSecret: prompt("Enter Azure Client Secret:"),
+          tenantId: prompt("Enter Azure Tenant ID:"),
+          subscriptionId: prompt("Enter Azure Subscription ID:")
+        };
+
+        if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
+          throw new Error("All Azure credentials are required");
+        }
+      }
+      // Add similar credential collection for AWS and GCP if needed
+
+      const { data, error } = await supabase
+        .from('cloud_provider_connections')
+        .upsert({
+          user_id: session.user.id,
+          provider,
+          credentials,
+          is_active: true,
+          last_sync_at: new Date().toISOString()
+        })
+        .select();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Successfully connected to ${provider.toUpperCase()}`,
+      });
+
+      // Update local connection status
+      setConnectionStatus(prev => ({
+        ...prev,
+        [provider]: true
+      }));
+
+      // Fetch Azure cost data if connecting to Azure
+      if (provider === 'azure') {
+        await fetchAzureCostData();
+      }
+    } catch (error: any) {
+      console.error(`Error connecting to ${provider}:`, error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || `Failed to connect to ${provider.toUpperCase()}`,
+      });
+    } finally {
+      setIsConnecting(null);
+      await fetchConnectionStatus();
     }
   };
 
@@ -189,6 +259,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           {Object.entries(connectionStatus).map(([provider, isConnected]) => {
             const details = getProviderDetails(provider);
             const isDisconnectingThis = isDisconnecting === provider;
+            const isConnectingThis = isConnecting === provider;
             
             return (
               <Card key={provider} className="p-4">
@@ -207,7 +278,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                     <span className={`text-sm ${isConnected ? "text-green-500" : "text-gray-400"}`}>
                       {isConnected ? "Connected" : "Not Connected"}
                     </span>
-                    {isConnected && (
+                    {isConnected ? (
                       <div className="flex items-center space-x-2">
                         {provider === 'azure' && (
                           <button
@@ -239,6 +310,22 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                           )}
                         </Button>
                       </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => connectProvider(provider)}
+                        disabled={isConnectingThis}
+                      >
+                        {isConnectingThis ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Cloud className="h-4 w-4 mr-1" />
+                            Connect
+                          </>
+                        )}
+                      </Button>
                     )}
                   </div>
                 </div>
