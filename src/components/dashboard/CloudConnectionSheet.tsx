@@ -124,15 +124,16 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       let credentials = null;
       
       if (provider === 'azure') {
+        // Get service principal credentials
         credentials = {
-          clientId: prompt("Enter Azure Client ID:"),
-          clientSecret: prompt("Enter Azure Client Secret:"),
+          clientId: prompt("Enter Azure Service Principal Client ID:"),
+          clientSecret: prompt("Enter Azure Service Principal Client Secret:"),
           tenantId: prompt("Enter Azure Tenant ID:"),
           subscriptionId: prompt("Enter Azure Subscription ID:")
         };
 
         if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-          throw new Error("All Azure credentials are required");
+          throw new Error("All Azure service principal credentials are required");
         }
       }
 
@@ -160,7 +161,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       }));
 
       if (provider === 'azure') {
-        // Fetch both cost and resource data after successful connection
         await Promise.all([
           fetchAzureCostData(),
           fetchAzureResources()

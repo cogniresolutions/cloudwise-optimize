@@ -7,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -19,7 +18,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get the user ID from the request authorization header
     const authHeader = req.headers.get('authorization')?.split(' ')[1]
     if (!authHeader) {
       console.error('No authorization header provided')
@@ -63,7 +61,7 @@ serve(async (req) => {
 
     console.log('Getting Azure access token')
 
-    // Get Azure access token with improved error handling
+    // Get Azure access token using service principal credentials
     const tokenResponse = await fetch(
       `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
       {
@@ -92,9 +90,8 @@ serve(async (req) => {
 
     console.log('Successfully obtained Azure token, fetching resources')
 
-    // Fetch resources in parallel with improved error handling
+    // Fetch resources using the service principal token
     const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
-      // Get VM count
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
         {
@@ -103,7 +100,6 @@ serve(async (req) => {
           },
         }
       ),
-      // Get SQL Database count
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-02-01-preview`,
         {
@@ -112,7 +108,6 @@ serve(async (req) => {
           },
         }
       ),
-      // Get Storage Account count
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01`,
         {
@@ -123,21 +118,12 @@ serve(async (req) => {
       )
     ])
 
-    // Check responses and parse JSON with detailed error messages
-    if (!vmResponse.ok) {
-      const errorText = await vmResponse.text()
-      console.error('Failed to fetch VMs:', errorText)
-      throw new Error(`Failed to fetch Azure VMs: ${vmResponse.status} ${vmResponse.statusText}`)
-    }
-    if (!sqlResponse.ok) {
-      const errorText = await sqlResponse.text()
-      console.error('Failed to fetch SQL databases:', errorText)
-      throw new Error(`Failed to fetch Azure SQL databases: ${sqlResponse.status} ${sqlResponse.statusText}`)
-    }
-    if (!storageResponse.ok) {
-      const errorText = await storageResponse.text()
-      console.error('Failed to fetch storage accounts:', errorText)
-      throw new Error(`Failed to fetch Azure storage accounts: ${storageResponse.status} ${storageResponse.statusText}`)
+    // Process responses and handle errors
+    if (!vmResponse.ok || !sqlResponse.ok || !storageResponse.ok) {
+      const failedResponse = !vmResponse.ok ? vmResponse : !sqlResponse.ok ? sqlResponse : storageResponse
+      const errorText = await failedResponse.text()
+      console.error('Failed to fetch resources:', errorText)
+      throw new Error(`Failed to fetch Azure resources: ${failedResponse.status} ${failedResponse.statusText}`)
     }
 
     const [vmData, sqlData, storageData] = await Promise.all([
