@@ -21,13 +21,31 @@ serve(async (req) => {
     const authHeader = req.headers.get('authorization')?.split(' ')[1]
     if (!authHeader) {
       console.error('No authorization header provided')
-      throw new Error('No authorization header')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'No authorization header provided'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
     }
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
     if (userError || !user) {
       console.error('Error getting user:', userError)
-      throw new Error('Unauthorized')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
     }
 
     console.log('Fetching Azure connections for user:', user.id)
@@ -43,7 +61,16 @@ serve(async (req) => {
 
     if (connectionError) {
       console.error('Error fetching Azure connection:', connectionError)
-      throw new Error('Failed to fetch Azure connection')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to fetch Azure connection'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
     }
 
     if (!connection?.credentials) {
@@ -65,7 +92,16 @@ serve(async (req) => {
     // Validate Azure credentials structure
     if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
       console.error('Invalid Azure credentials structure')
-      throw new Error('Invalid Azure credentials configuration')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Invalid Azure credentials configuration'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        }
+      )
     }
 
     console.log('Getting Azure access token')
@@ -91,10 +127,18 @@ serve(async (req) => {
     
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('Failed to get Azure token:', JSON.stringify(tokenData, null, 2))
-      if (tokenData.error === 'invalid_client') {
-        throw new Error('Invalid Azure credentials. Please verify your Client ID and Client Secret are correct.')
-      }
-      throw new Error('Failed to authenticate with Azure: ' + (tokenData.error_description || 'Invalid credentials'))
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: tokenData.error === 'invalid_client' 
+            ? 'Invalid Azure credentials. Please verify your Client ID and Client Secret are correct.'
+            : 'Failed to authenticate with Azure: ' + (tokenData.error_description || 'Invalid credentials')
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 401
+        }
+      )
     }
 
     console.log('Successfully obtained Azure token, fetching resources')
@@ -132,7 +176,16 @@ serve(async (req) => {
       const failedResponse = !vmResponse.ok ? vmResponse : !sqlResponse.ok ? sqlResponse : storageResponse
       const errorText = await failedResponse.text()
       console.error('Failed to fetch resources:', errorText)
-      throw new Error(`Failed to fetch Azure resources: ${failedResponse.status} ${failedResponse.statusText}`)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Failed to fetch Azure resources: ${failedResponse.status} ${failedResponse.statusText}`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: failedResponse.status
+        }
+      )
     }
 
     const [vmData, sqlData, storageData] = await Promise.all([
@@ -177,7 +230,16 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error('Error upserting resource counts:', upsertError)
-      throw new Error('Failed to update resource counts in database')
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to update resource counts in database'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
     }
 
     console.log('Successfully updated resource counts in database')
