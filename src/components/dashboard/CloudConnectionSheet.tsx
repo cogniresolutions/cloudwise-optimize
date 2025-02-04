@@ -30,6 +30,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   const [azureCostData, setAzureCostData] = useState<any>(null);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
+  const [resourceCounts, setResourceCounts] = useState<any>(null);
 
   useEffect(() => {
     if (session?.user) {
@@ -67,8 +68,12 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       console.log('Updated connection status:', newStatus);
       setConnectionStatus(newStatus);
 
+      // If Azure is connected, fetch both cost and resource data
       if (newStatus.azure) {
-        fetchAzureCostData();
+        await Promise.all([
+          fetchAzureCostData(),
+          fetchAzureResources()
+        ]);
       }
     } catch (error) {
       console.error('Error fetching cloud connections:', error);
@@ -76,6 +81,30 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         variant: "destructive",
         title: "Error",
         description: "Failed to fetch cloud provider connections",
+      });
+    }
+  };
+
+  const fetchAzureResources = async () => {
+    try {
+      console.log('Fetching Azure resources...');
+      const { data: resourceData, error: resourceError } = await supabase.functions.invoke('fetch-azure-resource-counts');
+      
+      if (resourceError) throw resourceError;
+      
+      console.log('Azure resources fetched:', resourceData);
+      setResourceCounts(resourceData.data);
+      
+      toast({
+        title: "Success",
+        description: "Azure resources fetched successfully",
+      });
+    } catch (error) {
+      console.error('Error fetching Azure resources:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch Azure resources",
       });
     }
   };
@@ -106,7 +135,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           throw new Error("All Azure credentials are required");
         }
       }
-      // Add similar credential collection for AWS and GCP if needed
 
       const { data, error } = await supabase
         .from('cloud_provider_connections')
@@ -126,15 +154,17 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         description: `Successfully connected to ${provider.toUpperCase()}`,
       });
 
-      // Update local connection status
       setConnectionStatus(prev => ({
         ...prev,
         [provider]: true
       }));
 
-      // Fetch Azure cost data if connecting to Azure
       if (provider === 'azure') {
-        await fetchAzureCostData();
+        // Fetch both cost and resource data after successful connection
+        await Promise.all([
+          fetchAzureCostData(),
+          fetchAzureResources()
+        ]);
       }
     } catch (error: any) {
       console.error(`Error connecting to ${provider}:`, error);
@@ -187,29 +217,23 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     console.log(`Attempting to disconnect from ${provider}...`);
 
     try {
-      // Update the connection record to clear credentials and mark as inactive
       const { error } = await supabase
         .from('cloud_provider_connections')
         .update({ 
           is_active: false,
-          credentials: null,  // Clear credentials when disconnecting
+          credentials: null,
           last_sync_at: new Date().toISOString()
         })
         .eq('user_id', session.user.id)
-        .eq('provider', provider)
-        .select();
+        .eq('provider', provider);
 
-      if (error) {
-        console.error('Supabase update error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      // Clear Azure cost data if disconnecting from Azure
       if (provider === 'azure') {
         setAzureCostData(null);
+        setResourceCounts(null);
       }
 
-      // Update local state after successful disconnection
       setConnectionStatus(prev => ({
         ...prev,
         [provider]: false
@@ -228,7 +252,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       });
     } finally {
       setIsDisconnecting(null);
-      // Refresh connection status to ensure UI is in sync with server
       await fetchConnectionStatus();
     }
   };
@@ -282,7 +305,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                       <div className="flex items-center space-x-2">
                         {provider === 'azure' && (
                           <button
-                            onClick={fetchAzureCostData}
+                            onClick={fetchAzureResources}
                             className="ml-2 p-1 hover:bg-gray-100 rounded"
                             disabled={isLoading || isDisconnectingThis}
                           >
@@ -329,12 +352,24 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                     )}
                   </div>
                 </div>
-                {provider === 'azure' && isConnected && azureCostData && (
-                  <div className="mt-4 text-sm">
-                    <p>Latest Cost Data:</p>
-                    <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
-                      {JSON.stringify(azureCostData, null, 2)}
-                    </pre>
+                {provider === 'azure' && isConnected && (
+                  <div className="mt-4 space-y-4">
+                    {azureCostData && (
+                      <div className="text-sm">
+                        <p>Latest Cost Data:</p>
+                        <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
+                          {JSON.stringify(azureCostData, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                    {resourceCounts && (
+                      <div className="text-sm">
+                        <p>Resource Counts:</p>
+                        <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
+                          {JSON.stringify(resourceCounts, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
               </Card>
