@@ -33,8 +33,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
         .select('*')
-        .order('last_updated_at', { ascending: false })
-        .limit(3);
+        .eq('user_id', session?.user.id)
+        .order('last_updated_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching from Supabase:', error);
@@ -94,12 +94,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   };
 
   const getIconForResourceType = (type: string): React.ElementType => {
-    switch (type) {
-      case 'Virtual Machines':
+    switch (type.toLowerCase()) {
+      case 'virtual machines':
         return Server;
-      case 'SQL Databases':
+      case 'sql databases':
+      case 'sql servers':
+      case 'databases':
         return Database;
-      case 'Storage Accounts':
+      case 'storage accounts':
         return HardDrive;
       default:
         return Server;
@@ -124,6 +126,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           event: '*',
           schema: 'public',
           table: 'azure_resource_counts',
+          filter: `user_id=eq.${session.user.id}`,
         },
         (payload) => {
           console.log('Resource count updated:', payload);
