@@ -12,11 +12,31 @@ import { Cloud, CloudOff, Loader2, Unlink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 interface CloudConnectionSheetProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const azureFormSchema = z.object({
+  clientId: z.string().min(1, "Client ID is required"),
+  clientSecret: z.string().min(1, "Client Secret is required"),
+  tenantId: z.string().min(1, "Tenant ID is required"),
+  subscriptionId: z.string().min(1, "Subscription ID is required"),
+});
+
+type AzureFormValues = z.infer<typeof azureFormSchema>;
 
 export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSheetProps) {
   const { toast } = useToast();
@@ -30,6 +50,17 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [resourceCounts, setResourceCounts] = useState<any>(null);
+  const [showAzureForm, setShowAzureForm] = useState(false);
+
+  const azureForm = useForm<AzureFormValues>({
+    resolver: zodResolver(azureFormSchema),
+    defaultValues: {
+      clientId: "",
+      clientSecret: "",
+      tenantId: "",
+      subscriptionId: "",
+    },
+  });
 
   useEffect(() => {
     if (session?.user) {
@@ -115,24 +146,16 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       return;
     }
 
+    if (provider === 'azure') {
+      setShowAzureForm(true);
+      return;
+    }
+
     setIsConnecting(provider);
     try {
       let credentials = null;
       
       switch (provider) {
-        case 'azure':
-          credentials = {
-            clientId: prompt("Enter Azure Service Principal Client ID:"),
-            clientSecret: prompt("Enter Azure Service Principal Client Secret:"),
-            tenantId: prompt("Enter Azure Tenant ID:"),
-            subscriptionId: prompt("Enter Azure Subscription ID:")
-          };
-
-          if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-            throw new Error("All Azure service principal credentials are required");
-          }
-          break;
-
         case 'aws':
           credentials = {
             accessKeyId: prompt("Enter AWS Access Key ID:"),
@@ -162,33 +185,7 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
           break;
       }
 
-      const { data, error } = await supabase
-        .from('cloud_provider_connections')
-        .upsert({
-          user_id: session.user.id,
-          provider,
-          credentials,
-          is_active: true,
-          last_sync_at: new Date().toISOString()
-        })
-        .select();
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Successfully connected to ${provider.toUpperCase()}`,
-      });
-
-      setConnectionStatus(prev => ({
-        ...prev,
-        [provider]: true
-      }));
-
-      // Fetch initial data based on provider
-      if (provider === 'azure') {
-        await fetchAzureResources();
-      }
+      await saveProviderCredentials(provider, credentials);
     } catch (error: any) {
       console.error(`Error connecting to ${provider}:`, error);
       toast({
@@ -199,6 +196,53 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     } finally {
       setIsConnecting(null);
       await fetchConnectionStatus();
+    }
+  };
+
+  const onAzureSubmit = async (data: AzureFormValues) => {
+    setIsConnecting('azure');
+    try {
+      await saveProviderCredentials('azure', data);
+      setShowAzureForm(false);
+      azureForm.reset();
+    } catch (error: any) {
+      console.error('Error connecting to Azure:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to connect to Azure",
+      });
+    } finally {
+      setIsConnecting(null);
+    }
+  };
+
+  const saveProviderCredentials = async (provider: string, credentials: any) => {
+    const { data, error } = await supabase
+      .from('cloud_provider_connections')
+      .upsert({
+        user_id: session?.user?.id,
+        provider,
+        credentials,
+        is_active: true,
+        last_sync_at: new Date().toISOString()
+      })
+      .select();
+
+    if (error) throw error;
+
+    toast({
+      title: "Success",
+      description: `Successfully connected to ${provider.toUpperCase()}`,
+    });
+
+    setConnectionStatus(prev => ({
+      ...prev,
+      [provider]: true
+    }));
+
+    if (provider === 'azure') {
+      await fetchAzureResources();
     }
   };
 
@@ -334,16 +378,75 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                     )}
                   </div>
                 </div>
-                {provider === 'azure' && isConnected && (
+                {provider === 'azure' && !isConnected && showAzureForm && (
+                  <Form {...azureForm}>
+                    <form onSubmit={azureForm.handleSubmit(onAzureSubmit)} className="space-y-4 mt-4">
+                      <FormField
+                        control={azureForm.control}
+                        name="clientId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client ID</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter Azure Client ID" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={azureForm.control}
+                        name="clientSecret"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Client Secret</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="Enter Azure Client Secret" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={azureForm.control}
+                        name="tenantId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tenant ID</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter Azure Tenant ID" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={azureForm.control}
+                        name="subscriptionId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Subscription ID</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter Azure Subscription ID" {...field} />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <Button type="submit" className="w-full" disabled={isConnectingThis}>
+                        {isConnectingThis ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Connect to Azure"
+                        )}
+                      </Button>
+                    </form>
+                  </Form>
+                )}
+                {provider === 'azure' && isConnected && resourceCounts && (
                   <div className="mt-4 space-y-4">
-                    {resourceCounts && (
-                      <div className="text-sm">
-                        <p>Resource Counts:</p>
-                        <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
-                          {JSON.stringify(resourceCounts, null, 2)}
-                        </pre>
-                      </div>
-                    )}
+                    <div className="text-sm">
+                      <p>Resource Counts:</p>
+                      <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
+                        {JSON.stringify(resourceCounts, null, 2)}
+                      </pre>
+                    </div>
                   </div>
                 )}
               </Card>
