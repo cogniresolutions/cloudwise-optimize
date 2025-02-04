@@ -123,18 +123,47 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     try {
       let credentials = null;
       
-      if (provider === 'azure') {
-        // Get service principal credentials
-        credentials = {
-          clientId: prompt("Enter Azure Service Principal Client ID:"),
-          clientSecret: prompt("Enter Azure Service Principal Client Secret:"),
-          tenantId: prompt("Enter Azure Tenant ID:"),
-          subscriptionId: prompt("Enter Azure Subscription ID:")
-        };
+      switch (provider) {
+        case 'azure':
+          credentials = {
+            clientId: prompt("Enter Azure Service Principal Client ID:"),
+            clientSecret: prompt("Enter Azure Service Principal Client Secret:"),
+            tenantId: prompt("Enter Azure Tenant ID:"),
+            subscriptionId: prompt("Enter Azure Subscription ID:")
+          };
 
-        if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-          throw new Error("All Azure service principal credentials are required");
-        }
+          if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
+            throw new Error("All Azure service principal credentials are required");
+          }
+          break;
+
+        case 'aws':
+          credentials = {
+            accessKeyId: prompt("Enter AWS Access Key ID:"),
+            secretAccessKey: prompt("Enter AWS Secret Access Key:"),
+            region: prompt("Enter AWS Region (e.g., us-east-1):") || 'us-east-1'
+          };
+
+          if (!credentials.accessKeyId || !credentials.secretAccessKey) {
+            throw new Error("AWS Access Key ID and Secret Access Key are required");
+          }
+          break;
+
+        case 'gcp':
+          const serviceAccountKey = prompt("Enter GCP Service Account Key JSON:");
+          if (!serviceAccountKey) {
+            throw new Error("GCP Service Account Key is required");
+          }
+
+          try {
+            credentials = JSON.parse(serviceAccountKey);
+            if (!credentials.project_id || !credentials.private_key || !credentials.client_email) {
+              throw new Error("Invalid GCP Service Account Key format");
+            }
+          } catch (e) {
+            throw new Error("Invalid GCP Service Account Key JSON format");
+          }
+          break;
       }
 
       const { data, error } = await supabase
@@ -160,11 +189,22 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
         [provider]: true
       }));
 
-      if (provider === 'azure') {
-        await Promise.all([
-          fetchAzureCostData(),
-          fetchAzureResources()
-        ]);
+      // Fetch initial data based on provider
+      switch (provider) {
+        case 'azure':
+          await Promise.all([
+            fetchAzureCostData(),
+            fetchAzureResources()
+          ]);
+          break;
+        case 'aws':
+          // AWS specific data fetching will be implemented in future
+          console.log('AWS connection established, fetching data...');
+          break;
+        case 'gcp':
+          // GCP specific data fetching will be implemented in future
+          console.log('GCP connection established, fetching data...');
+          break;
       }
     } catch (error: any) {
       console.error(`Error connecting to ${provider}:`, error);
@@ -176,30 +216,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     } finally {
       setIsConnecting(null);
       await fetchConnectionStatus();
-    }
-  };
-
-  const fetchAzureCostData = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('fetch-azure-costs');
-      
-      if (error) throw error;
-      
-      setAzureCostData(data);
-      toast({
-        title: "Success",
-        description: "Azure cost data fetched successfully",
-      });
-    } catch (error) {
-      console.error('Error fetching Azure cost data:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch Azure cost data",
-      });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -219,19 +235,24 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     try {
       const { error } = await supabase
         .from('cloud_provider_connections')
-        .update({ 
-          is_active: false,
-          credentials: null,
-          last_sync_at: new Date().toISOString()
-        })
+        .delete()
         .eq('user_id', session.user.id)
         .eq('provider', provider);
 
       if (error) throw error;
 
-      if (provider === 'azure') {
-        setAzureCostData(null);
-        setResourceCounts(null);
+      // Clear provider-specific data
+      switch (provider) {
+        case 'azure':
+          setAzureCostData(null);
+          setResourceCounts(null);
+          break;
+        case 'aws':
+          // Clear AWS specific data
+          break;
+        case 'gcp':
+          // Clear GCP specific data
+          break;
       }
 
       setConnectionStatus(prev => ({
