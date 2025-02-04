@@ -51,23 +51,16 @@ serve(async (req) => {
     console.log('Fetching Azure connections for user:', user.id)
 
     // Get Azure credentials for the user
-    const { data: connections, error: connectionError } = await supabaseClient
+    const { data: connection, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
       .eq('provider', 'azure')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single()
+      .maybeSingle()
 
     if (connectionError) {
       console.error('Error fetching Azure connection:', connectionError)
-      // Update connection status to inactive if there's an error
-      await supabaseClient
-        .from('cloud_provider_connections')
-        .update({ is_active: false })
-        .eq('provider', 'azure')
-        .eq('user_id', user.id)
-
       return new Response(
         JSON.stringify({
           success: false,
@@ -80,7 +73,7 @@ serve(async (req) => {
       )
     }
 
-    if (!connections?.credentials) {
+    if (!connection || !connection.credentials) {
       console.error('No active Azure connection found')
       return new Response(
         JSON.stringify({
@@ -94,7 +87,7 @@ serve(async (req) => {
       )
     }
 
-    const { credentials } = connections
+    const { credentials } = connection
 
     // Validate Azure credentials structure
     if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
