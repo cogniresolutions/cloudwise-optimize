@@ -55,15 +55,15 @@ serve(async (req) => {
 
     const { credentials } = connections
 
-    // Validate Azure credentials
+    // Validate Azure credentials structure
     if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-      console.error('Invalid Azure credentials')
+      console.error('Invalid Azure credentials structure')
       throw new Error('Invalid Azure credentials configuration')
     }
 
     console.log('Getting Azure access token')
 
-    // Get Azure access token
+    // Get Azure access token with improved error handling
     const tokenResponse = await fetch(
       `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
       {
@@ -83,13 +83,16 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json()
     
     if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('Failed to get Azure token:', tokenData)
+      console.error('Failed to get Azure token:', JSON.stringify(tokenData, null, 2))
+      if (tokenData.error === 'invalid_client') {
+        throw new Error('Invalid Azure credentials. Please verify your Client ID and Client Secret are correct.')
+      }
       throw new Error('Failed to authenticate with Azure: ' + (tokenData.error_description || 'Invalid credentials'))
     }
 
     console.log('Successfully obtained Azure token, fetching resources')
 
-    // Fetch resources in parallel
+    // Fetch resources in parallel with improved error handling
     const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
       // Get VM count
       fetch(
@@ -120,18 +123,21 @@ serve(async (req) => {
       )
     ])
 
-    // Check responses and parse JSON
+    // Check responses and parse JSON with detailed error messages
     if (!vmResponse.ok) {
-      console.error('Failed to fetch VMs:', await vmResponse.text())
-      throw new Error('Failed to fetch Azure VMs')
+      const errorText = await vmResponse.text()
+      console.error('Failed to fetch VMs:', errorText)
+      throw new Error(`Failed to fetch Azure VMs: ${vmResponse.status} ${vmResponse.statusText}`)
     }
     if (!sqlResponse.ok) {
-      console.error('Failed to fetch SQL databases:', await sqlResponse.text())
-      throw new Error('Failed to fetch Azure SQL databases')
+      const errorText = await sqlResponse.text()
+      console.error('Failed to fetch SQL databases:', errorText)
+      throw new Error(`Failed to fetch Azure SQL databases: ${sqlResponse.status} ${sqlResponse.statusText}`)
     }
     if (!storageResponse.ok) {
-      console.error('Failed to fetch storage accounts:', await storageResponse.text())
-      throw new Error('Failed to fetch Azure storage accounts')
+      const errorText = await storageResponse.text()
+      console.error('Failed to fetch storage accounts:', errorText)
+      throw new Error(`Failed to fetch Azure storage accounts: ${storageResponse.status} ${storageResponse.statusText}`)
     }
 
     const [vmData, sqlData, storageData] = await Promise.all([
