@@ -27,7 +27,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
     gcp: false,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [azureCostData, setAzureCostData] = useState<any>(null);
   const [isDisconnecting, setIsDisconnecting] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState<string | null>(null);
   const [resourceCounts, setResourceCounts] = useState<any>(null);
@@ -68,12 +67,9 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       console.log('Updated connection status:', newStatus);
       setConnectionStatus(newStatus);
 
-      // If Azure is connected, fetch both cost and resource data
+      // If Azure is connected, fetch resource data
       if (newStatus.azure) {
-        await Promise.all([
-          fetchAzureCostData(),
-          fetchAzureResources()
-        ]);
+        await fetchAzureResources();
       }
     } catch (error) {
       console.error('Error fetching cloud connections:', error);
@@ -190,21 +186,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       }));
 
       // Fetch initial data based on provider
-      switch (provider) {
-        case 'azure':
-          await Promise.all([
-            fetchAzureCostData(),
-            fetchAzureResources()
-          ]);
-          break;
-        case 'aws':
-          // AWS specific data fetching will be implemented in future
-          console.log('AWS connection established, fetching data...');
-          break;
-        case 'gcp':
-          // GCP specific data fetching will be implemented in future
-          console.log('GCP connection established, fetching data...');
-          break;
+      if (provider === 'azure') {
+        await fetchAzureResources();
       }
     } catch (error: any) {
       console.error(`Error connecting to ${provider}:`, error);
@@ -242,17 +225,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       if (error) throw error;
 
       // Clear provider-specific data
-      switch (provider) {
-        case 'azure':
-          setAzureCostData(null);
-          setResourceCounts(null);
-          break;
-        case 'aws':
-          // Clear AWS specific data
-          break;
-        case 'gcp':
-          // Clear GCP specific data
-          break;
+      if (provider === 'azure') {
+        setResourceCounts(null);
       }
 
       setConnectionStatus(prev => ({
@@ -324,19 +298,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                     </span>
                     {isConnected ? (
                       <div className="flex items-center space-x-2">
-                        {provider === 'azure' && (
-                          <button
-                            onClick={fetchAzureResources}
-                            className="ml-2 p-1 hover:bg-gray-100 rounded"
-                            disabled={isLoading || isDisconnectingThis}
-                          >
-                            {isLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Cloud className="h-4 w-4" />
-                            )}
-                          </button>
-                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -375,14 +336,6 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
                 </div>
                 {provider === 'azure' && isConnected && (
                   <div className="mt-4 space-y-4">
-                    {azureCostData && (
-                      <div className="text-sm">
-                        <p>Latest Cost Data:</p>
-                        <pre className="mt-2 p-2 bg-gray-50 rounded text-xs overflow-auto">
-                          {JSON.stringify(azureCostData, null, 2)}
-                        </pre>
-                      </div>
-                    )}
                     {resourceCounts && (
                       <div className="text-sm">
                         <p>Resource Counts:</p>
