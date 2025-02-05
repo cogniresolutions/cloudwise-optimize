@@ -54,15 +54,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       console.log('Fetching Azure resource counts for user:', session?.user.id);
       
       // First check if we have an active Azure connection
-      const { data: connection, error: connectionError } = await supabase
+      const { data: connections, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('*')
         .eq('provider', 'azure')
         .eq('user_id', session?.user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
       if (connectionError) {
         console.error('Error fetching Azure connection:', connectionError);
@@ -70,11 +69,13 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return;
       }
 
-      if (!connection) {
+      if (!connections || connections.length === 0) {
         console.log('No active Azure connection found');
         setIsAzureConnected(false);
         return;
       }
+
+      const connection = connections[0];
 
       // Type check and validate credentials using type guard
       if (!isAzureCredentials(connection.credentials)) {
