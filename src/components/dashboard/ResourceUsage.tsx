@@ -1,13 +1,21 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ResourceTable } from "./ResourceTable";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  CheckCircle, CloudOff, Loader2
+  Server, Database, HardDrive, Cloud, Cpu,
+  BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
+  CheckCircle, CloudOff, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { ResourceType } from "./types";
+
+interface ResourceType {
+  resource_type: string;
+  count: number;
+  usage_percentage: number;
+  cost: number | null;
+}
 
 interface ResourceUsageProps {
   provider: string;
@@ -18,123 +26,129 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
-  const [isAzureConnected, setIsAzureConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const fetchResourceCounts = async () => {
-    if (provider !== 'azure') return;
-
     setIsLoading(true);
     try {
       const { data: connections, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('*')
-        .eq('provider', 'azure')
+        .eq('provider', provider)
         .eq('user_id', session?.user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (connectionError || !connections || connections.length === 0) {
-        setIsAzureConnected(false);
-        localStorage.removeItem('azureConnected');
+        setIsConnected(false);
         return;
       }
 
-      const connection = connections[0];
-      const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
-      const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
-
-      if (lastSyncTime <= oneHourAgo) {
-        setIsAzureConnected(false);
-        localStorage.removeItem('azureConnected');
-        return;
-      }
-
-      setIsAzureConnected(true);
-      localStorage.setItem('azureConnected', 'true');
+      setIsConnected(true);
 
       const { data: resourceCounts, error } = await supabase
-        .from('azure_resource_counts')
+        .from(`${provider.toLowerCase()}_resource_counts`)
         .select('*')
         .eq('user_id', session?.user.id)
         .order('last_updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      const resourcesWithRecommendations = await generateOptimizationRecommendations(resourceCounts);
-      setResources(resourcesWithRecommendations);
+      setResources(resourceCounts);
     } catch (err) {
-      setIsAzureConnected(false);
-      localStorage.removeItem('azureConnected');
+      setIsConnected(false);
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : "Failed to fetch resource counts",
+        description: err instanceof Error ? err.message : `Failed to fetch ${provider} resource counts`,
       });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const generateOptimizationRecommendations = async (resources: ResourceType[]) => {
-    return await Promise.all(resources.map(async (resource) => {
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
-          body: { resource }
-        });
-
-        if (error) throw error;
-
-        return {
-          ...resource,
-          recommendations: data.recommendation,
-          details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
-        };
-      } catch (error) {
-        console.error('Error generating recommendations:', error);
-        return {
-          ...resource,
-          recommendations: "Unable to generate recommendations at this time.",
-          details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
-        };
-      }
-    }));
-  };
-
   useEffect(() => {
-    const storedConnectionStatus = localStorage.getItem('azureConnected');
-    if (storedConnectionStatus === 'true') {
-      setIsAzureConnected(true);
-    }
     fetchResourceCounts();
   }, [session?.user, provider]);
 
   return (
-    <Card>
+    <Card className="p-6 shadow-lg w-full">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>{provider.toUpperCase()} Resource Usage</CardTitle>
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsConnected(!isConnected)}>
+          <CardTitle className="text-2xl font-bold">{provider.toUpperCase()} Resource Usage</CardTitle>
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : isAzureConnected ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isConnected ? (
             <span className="text-green-500 flex items-center">
-              <CheckCircle className="h-4 w-4 mr-1" /> Connected
+              <CheckCircle className="h-5 w-5 mr-1" /> Connected
             </span>
           ) : (
             <span className="text-red-500 flex items-center">
-              <CloudOff className="h-4 w-4 mr-1" /> Not Connected
+              <CloudOff className="h-5 w-5 mr-1" /> Not Connected
             </span>
           )}
         </div>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
-          <ResourceTable resources={resources} />
-        )}
-      </CardContent>
+      {isConnected && (
+        <CardContent>
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table className="min-w-full">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-1/4 text-lg">Resource Type</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Count</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Usage %</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Cost (USD)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resources.map((resource) => (
+                    <TableRow key={resource.resource_type} className="hover:bg-gray-50">
+                      <TableCell className="font-medium flex items-center space-x-2 text-base">
+                        {getIconForResourceType(resource.resource_type)}
+                        <span>{resource.resource_type}</span>
+                      </TableCell>
+                      <TableCell className="text-base text-center">{resource.count}</TableCell>
+                      <TableCell className="text-base text-center">{resource.usage_percentage}%</TableCell>
+                      <TableCell className="text-base text-center">
+                        {resource.cost !== null ? (
+                          <div className="flex items-center justify-center text-green-600">
+                            <DollarSign className="h-4 w-4 mr-1" /> {resource.cost.toFixed(2)}
+                          </div>
+                        ) : (
+                          "N/A"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
+}
+
+function getIconForResourceType(type: string) {
+  switch (type.toLowerCase()) {
+    case 'virtual machines': return <Server className="h-6 w-6 text-primary" />;
+    case 'sql databases': return <Database className="h-6 w-6 text-purple-500" />;
+    case 'storage accounts': return <HardDrive className="h-6 w-6 text-orange-500" />;
+    case 'app services': return <Cloud className="h-6 w-6 text-green-500" />;
+    case 'kubernetes clusters': return <Cpu className="h-6 w-6 text-red-500" />;
+    case 'cosmos db': return <Database className="h-6 w-6 text-gray-500" />;
+    case 'cognitive services': return <BrainCog className="h-6 w-6 text-blue-500" />;
+    case 'azure openai': return <Bot className="h-6 w-6 text-teal-500" />;
+    case 'container apps': return <LayoutGrid className="h-6 w-6 text-indigo-500" />;
+    default: return <Server className="h-6 w-6 text-primary" />;
+  }
 }
