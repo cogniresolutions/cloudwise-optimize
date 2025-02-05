@@ -26,17 +26,23 @@ interface ResourceUsageProps {
   provider: string;
 }
 
+interface AzureCredentials {
+  tenantId: string;
+  clientId: string;
+  clientSecret: string;
+  subscriptionId: string;
+}
+
 export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { toast } = useToast();
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [isExpanded, setIsExpanded] = useState(true);
 
   const checkConnectionStatus = async () => {
     try {
-      const { data: connections, error: connectionError } = await supabase
+      const { data: connections, error } = await supabase
         .from('cloud_provider_connections')
         .select('*')
         .eq('provider', provider)
@@ -44,20 +50,17 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         .eq('is_active', true)
         .single();
 
-      if (connectionError || !connections) {
+      if (error || !connections) {
         setIsConnected(false);
         return null;
       }
 
+      const credentials = connections.credentials as AzureCredentials;
       setIsConnected(true);
-      return connections.credentials;
+      return credentials;
     } catch (err) {
+      console.error("Error checking connection status:", err);
       setIsConnected(false);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: err instanceof Error ? err.message : `Failed to check ${provider} connection status`,
-      });
       return null;
     }
   };
@@ -86,14 +89,38 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       // Fetch resources
       const [vms, storageAccounts, sqlServers, usageDetails] = await Promise.all([
-        computeClient.virtualMachines.listAll(),
-        storageClient.storageAccounts.list(),
-        sqlClient.servers.list(),
-        consumptionClient.usageDetails.list()
+        computeClient.virtualMachines.listAll().then(async iterator => {
+          const items = [];
+          for await (const item of iterator) {
+            items.push(item);
+          }
+          return items;
+        }),
+        storageClient.storageAccounts.list().then(async iterator => {
+          const items = [];
+          for await (const item of iterator) {
+            items.push(item);
+          }
+          return items;
+        }),
+        sqlClient.servers.list().then(async iterator => {
+          const items = [];
+          for await (const item of iterator) {
+            items.push(item);
+          }
+          return items;
+        }),
+        consumptionClient.usageDetails.list().then(async iterator => {
+          const items = [];
+          for await (const item of iterator) {
+            items.push(item);
+          }
+          return items;
+        })
       ]);
 
       const getResourceCost = (resourceType: string) => {
-        const usage = Array.from(usageDetails).find(
+        const usage = usageDetails.find(
           (item) => item.instanceName?.toLowerCase().includes(resourceType.toLowerCase())
         );
         return usage?.pretaxCost ? parseFloat(usage.pretaxCost) : 0;
@@ -102,32 +129,23 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       const newResources: ResourceType[] = [
         {
           resource_type: "Virtual Machines",
-          count: Array.from(vms).length,
-          usage_percentage: 70, // This should be calculated based on actual metrics
+          count: vms.length,
+          usage_percentage: 70,
           cost: getResourceCost("virtualMachines"),
         },
         {
           resource_type: "Storage Accounts",
-          count: Array.from(storageAccounts).length,
+          count: storageAccounts.length,
           usage_percentage: 50,
           cost: getResourceCost("storageAccounts"),
         },
         {
           resource_type: "SQL Databases",
-          count: Array.from(sqlServers).length,
+          count: sqlServers.length,
           usage_percentage: 40,
           cost: getResourceCost("sqlDatabases"),
         },
       ];
-
-      // Save to Supabase for caching
-      await supabase.from('azure_resource_counts').upsert(
-        newResources.map(resource => ({
-          user_id: session?.user.id,
-          ...resource,
-          last_updated_at: new Date().toISOString()
-        }))
-      );
 
       setResources(newResources);
       setIsConnected(true);
@@ -153,7 +171,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   return (
     <Card className="p-6 shadow-lg w-full">
       <CardHeader>
-        <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+        <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-bold">{provider.toUpperCase()} Resource Usage</CardTitle>
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -168,47 +186,41 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           )}
         </div>
       </CardHeader>
-      {isConnected && isExpanded && (
+      {isConnected && (
         <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-1/4 text-lg">Resource Type</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Count</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Usage %</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Cost (USD)</TableHead>
+          <div className="overflow-x-auto">
+            <Table className="min-w-full">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/4 text-lg">Resource Type</TableHead>
+                  <TableHead className="w-1/4 text-lg text-center">Count</TableHead>
+                  <TableHead className="w-1/4 text-lg text-center">Usage %</TableHead>
+                  <TableHead className="w-1/4 text-lg text-center">Cost (USD)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resources.map((resource) => (
+                  <TableRow key={resource.resource_type} className="hover:bg-gray-50">
+                    <TableCell className="font-medium flex items-center space-x-2 text-base">
+                      {getIconForResourceType(resource.resource_type)}
+                      <span>{resource.resource_type}</span>
+                    </TableCell>
+                    <TableCell className="text-base text-center">{resource.count}</TableCell>
+                    <TableCell className="text-base text-center">{resource.usage_percentage}%</TableCell>
+                    <TableCell className="text-base text-center">
+                      {resource.cost !== null ? (
+                        <div className="flex items-center justify-center text-green-600">
+                          <DollarSign className="h-4 w-4 mr-1" /> {resource.cost.toFixed(2)}
+                        </div>
+                      ) : (
+                        "N/A"
+                      )}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {resources.map((resource) => (
-                    <TableRow key={resource.resource_type} className="hover:bg-gray-50">
-                      <TableCell className="font-medium flex items-center space-x-2 text-base">
-                        {getIconForResourceType(resource.resource_type)}
-                        <span>{resource.resource_type}</span>
-                      </TableCell>
-                      <TableCell className="text-base text-center">{resource.count}</TableCell>
-                      <TableCell className="text-base text-center">{resource.usage_percentage}%</TableCell>
-                      <TableCell className="text-base text-center">
-                        {resource.cost !== null ? (
-                          <div className="flex items-center justify-center text-green-600">
-                            <DollarSign className="h-4 w-4 mr-1" /> {resource.cost.toFixed(2)}
-                          </div>
-                        ) : (
-                          "N/A"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       )}
     </Card>
@@ -220,12 +232,6 @@ function getIconForResourceType(type: string) {
     case 'virtual machines': return <Server className="h-6 w-6 text-primary" />;
     case 'sql databases': return <Database className="h-6 w-6 text-purple-500" />;
     case 'storage accounts': return <HardDrive className="h-6 w-6 text-orange-500" />;
-    case 'app services': return <Cloud className="h-6 w-6 text-green-500" />;
-    case 'kubernetes clusters': return <Cpu className="h-6 w-6 text-red-500" />;
-    case 'cosmos db': return <Database className="h-6 w-6 text-gray-500" />;
-    case 'cognitive services': return <BrainCog className="h-6 w-6 text-blue-500" />;
-    case 'azure openai': return <Bot className="h-6 w-6 text-teal-500" />;
-    case 'container apps': return <LayoutGrid className="h-6 w-6 text-indigo-500" />;
     default: return <Server className="h-6 w-6 text-primary" />;
   }
 }
