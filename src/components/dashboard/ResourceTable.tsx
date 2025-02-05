@@ -35,14 +35,14 @@ export function ResourceTable({ resources }: ResourceTableProps) {
   };
 
   return (
-    <div className="w-full overflow-auto rounded-lg border bg-card">
+    <div className="w-full rounded-lg border bg-card">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[400px] px-6">Resource Type</TableHead>
-            <TableHead className="w-[150px] text-center">Count</TableHead>
-            <TableHead className="w-[200px] text-center">Usage %</TableHead>
-            <TableHead className="w-[200px] text-center">Cost (USD)</TableHead>
+            <TableHead className="w-[500px] px-6">Resource Type</TableHead>
+            <TableHead className="w-[200px] text-center">Count</TableHead>
+            <TableHead className="w-[300px] text-center">Usage %</TableHead>
+            <TableHead className="w-[300px] text-center">Cost (USD)</TableHead>
             <TableHead className="w-[100px] text-center">Details</TableHead>
           </TableRow>
         </TableHeader>
@@ -61,7 +61,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center px-6">
-                    <div className="w-full max-w-[150px] bg-secondary/30 rounded-full h-2.5">
+                    <div className="w-full max-w-[200px] bg-secondary/30 rounded-full h-2.5">
                       <div
                         className={cn(
                           "h-2.5 rounded-full transition-all duration-500",
