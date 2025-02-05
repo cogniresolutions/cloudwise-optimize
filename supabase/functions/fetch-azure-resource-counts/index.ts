@@ -50,20 +50,19 @@ serve(async (req) => {
 
     console.log('Fetching Azure connections for user:', user.id)
 
-    const { data: connection, error: connectionError } = await supabaseClient
+    const { data: connections, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
       .eq('provider', 'azure')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .maybeSingle()
 
     if (connectionError) {
-      console.error('Error fetching Azure connection:', connectionError)
+      console.error('Error fetching Azure connections:', connectionError)
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Failed to fetch Azure connection'
+          error: 'Failed to fetch Azure connections'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -72,12 +71,12 @@ serve(async (req) => {
       )
     }
 
-    if (!connection || !connection.credentials) {
-      console.error('No active Azure connection found')
+    if (!connections || connections.length === 0) {
+      console.error('No active Azure connections found')
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'No active Azure connection found'
+          error: 'No active Azure connections found'
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -86,6 +85,8 @@ serve(async (req) => {
       )
     }
 
+    // Use the first active connection
+    const connection = connections[0]
     const { credentials } = connection
 
     if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
@@ -93,8 +94,7 @@ serve(async (req) => {
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('provider', 'azure')
-        .eq('user_id', user.id)
+        .eq('id', connection.id)
 
       return new Response(
         JSON.stringify({
@@ -133,8 +133,7 @@ serve(async (req) => {
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('provider', 'azure')
-        .eq('user_id', user.id)
+        .eq('id', connection.id)
 
       return new Response(
         JSON.stringify({
@@ -156,8 +155,7 @@ serve(async (req) => {
         last_sync_at: new Date().toISOString(),
         is_active: true 
       })
-      .eq('provider', 'azure')
-      .eq('user_id', user.id)
+      .eq('id', connection.id)
 
     console.log('Successfully obtained Azure token, fetching resources')
 
@@ -238,18 +236,21 @@ serve(async (req) => {
         },
       ]
 
-      const { error: insertError } = await supabaseClient
-        .from('azure_resource_counts')
-        .insert(resourceCounts.map(resource => ({
-          user_id: user.id,
-          resource_type: resource.resource_type,
-          count: resource.count,
-          usage_percentage: resource.usage_percentage,
-          last_updated_at: new Date().toISOString(),
-        })))
+      for (const resource of resourceCounts) {
+        const { error: upsertError } = await supabaseClient
+          .from('azure_resource_counts')
+          .upsert({
+            user_id: user.id,
+            resource_type: resource.resource_type,
+            count: resource.count,
+            usage_percentage: resource.usage_percentage,
+            last_updated_at: new Date().toISOString(),
+          })
 
-      if (insertError) {
-        throw insertError
+        if (upsertError) {
+          console.error('Error upserting resource count:', upsertError)
+          throw upsertError
+        }
       }
 
       console.log('Successfully updated resource counts in database')
