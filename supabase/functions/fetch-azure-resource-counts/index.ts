@@ -161,7 +161,7 @@ serve(async (req) => {
 
         try {
           console.log('Fetching Azure resources...')
-          const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
+          const [vmResponse, sqlResponse, storageResponse, webAppsResponse, aksResponse, cosmosResponse] = await Promise.all([
             fetch(
               `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
               {
@@ -185,6 +185,30 @@ serve(async (req) => {
                   'Authorization': `Bearer ${tokenData.access_token}`,
                 },
               }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Web/sites?api-version=2022-03-01`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=2023-07-02-preview`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.DocumentDB/databaseAccounts?api-version=2023-09-15`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
             )
           ])
 
@@ -192,7 +216,10 @@ serve(async (req) => {
           for (const [name, response] of [
             ['VM', vmResponse],
             ['SQL', sqlResponse],
-            ['Storage', storageResponse]
+            ['Storage', storageResponse],
+            ['WebApps', webAppsResponse],
+            ['AKS', aksResponse],
+            ['CosmosDB', cosmosResponse]
           ]) {
             if (!response.ok) {
               const errorText = await response.text()
@@ -201,10 +228,13 @@ serve(async (req) => {
             }
           }
 
-          const [vmData, sqlData, storageData] = await Promise.all([
+          const [vmData, sqlData, storageData, webAppsData, aksData, cosmosData] = await Promise.all([
             vmResponse.json(),
             sqlResponse.json(),
-            storageResponse.json()
+            storageResponse.json(),
+            webAppsResponse.json(),
+            aksResponse.json(),
+            cosmosResponse.json()
           ])
 
           console.log('Successfully fetched Azure resources')
@@ -233,6 +263,21 @@ serve(async (req) => {
                 count: storageData.value?.length || 0,
                 usage_percentage: Math.floor(Math.random() * 100),
               },
+              {
+                resource_type: 'App Services',
+                count: webAppsData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              },
+              {
+                resource_type: 'Kubernetes Clusters',
+                count: aksData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              },
+              {
+                resource_type: 'Cosmos DB',
+                count: cosmosData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              }
             ]
 
             const { error: insertError } = await supabaseClient

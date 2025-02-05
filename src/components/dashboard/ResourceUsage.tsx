@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Database, HardDrive, Loader2 } from "lucide-react";
+import { Server, Database, HardDrive, Loader2, AppWindow, Cloud, Database as CosmosIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,27 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
+
+  const getIconForResourceType = (type: string): React.ElementType => {
+    switch (type.toLowerCase()) {
+      case 'virtual machines':
+        return Server;
+      case 'sql databases':
+      case 'sql servers':
+      case 'databases':
+        return Database;
+      case 'storage accounts':
+        return HardDrive;
+      case 'app services':
+        return AppWindow;
+      case 'kubernetes clusters':
+        return Cloud;
+      case 'cosmos db':
+        return CosmosIcon;
+      default:
+        return Server;
+    }
+  };
 
   const fetchResourceCounts = async () => {
     if (provider !== 'azure') return;
@@ -90,21 +111,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const getIconForResourceType = (type: string): React.ElementType => {
-    switch (type.toLowerCase()) {
-      case 'virtual machines':
-        return Server;
-      case 'sql databases':
-      case 'sql servers':
-      case 'databases':
-        return Database;
-      case 'storage accounts':
-        return HardDrive;
-      default:
-        return Server;
     }
   };
 
