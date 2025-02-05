@@ -186,6 +186,44 @@ export type Database = {
           },
         ]
       }
+      cloud_cost_overview: {
+        Row: {
+          aws_cost: number | null
+          azure_cost: number | null
+          created_at: string
+          date: string
+          gcp_cost: number | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          aws_cost?: number | null
+          azure_cost?: number | null
+          created_at?: string
+          date: string
+          gcp_cost?: number | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          aws_cost?: number | null
+          azure_cost?: number | null
+          created_at?: string
+          date?: string
+          gcp_cost?: number | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cloud_cost_overview_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_provider_connections: {
         Row: {
           created_at: string

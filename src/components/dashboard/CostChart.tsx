@@ -1,97 +1,50 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { Loader2 } from "lucide-react";
 
-interface CostData {
+interface CostDataType {
   month: string;
-  cost: number;
-  savings: number;
-}
-
-interface HistoricalCostData {
-  cost_date: string;
-  total_cost: number;
-  potential_savings: number;
-}
-
-interface CloudResourceCostData {
-  last_updated_at: string;
-  cost_data: {
-    totalCost?: number;
-    potentialSavings?: number;
-  };
+  azure_cost: number;
+  aws_cost: number;
+  gcp_cost: number;
 }
 
 export function CostChart() {
+  const { toast } = useToast();
   const { session } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [costData, setCostData] = useState<CostData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [costData, setCostData] = useState<CostDataType[]>([]);
 
   const fetchCostData = async () => {
+    setIsLoading(true);
     try {
-      // First try to get data from historical_cost_data
-      const { data: historicalData, error: historicalError } = await supabase
-        .from('historical_cost_data')
-        .select('cost_date, total_cost, potential_savings')
+      const { data, error } = await supabase
+        .from('cloud_cost_overview')
+        .select('*')
         .eq('user_id', session?.user.id)
-        .gte('cost_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()) as { data: HistoricalCostData[] | null, error: any };
+        .gte('date', new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString())
+        .order('date', { ascending: true });
 
-      if (historicalError) throw historicalError;
+      if (error) throw error;
 
-      // Then get recent data from cloud_resources
-      const { data: recentData, error: recentError } = await supabase
-        .from('cloud_resources')
-        .select('cost_data, last_updated_at')
-        .eq('user_id', session?.user.id)
-        .eq('resource_type', 'cost')
-        .order('last_updated_at', { ascending: true }) as { data: CloudResourceCostData[] | null, error: any };
+      const formattedData = data.map((item: any) => ({
+        month: new Date(item.date).toLocaleString('default', { month: 'short', year: 'numeric' }),
+        azure_cost: Number(item.azure_cost) || 0,
+        aws_cost: Number(item.aws_cost) || 0,
+        gcp_cost: Number(item.gcp_cost) || 0,
+      }));
 
-      if (recentError) throw recentError;
-
-      // Process historical data
-      const processedHistorical = (historicalData || []).reduce((acc: Record<string, CostData>, entry) => {
-        const month = new Date(entry.cost_date).toLocaleString('default', { month: 'short' });
-        if (!acc[month]) {
-          acc[month] = {
-            month,
-            cost: 0,
-            savings: 0
-          };
-        }
-        acc[month].cost += Number(entry.total_cost || 0);
-        acc[month].savings += Number(entry.potential_savings || 0);
-        return acc;
-      }, {});
-
-      // Process recent data
-      const processedRecent = (recentData || []).reduce((acc: Record<string, CostData>, resource) => {
-        if (resource.cost_data && typeof resource.cost_data === 'object') {
-          const month = new Date(resource.last_updated_at).toLocaleString('default', { month: 'short' });
-          if (!acc[month]) {
-            acc[month] = {
-              month,
-              cost: 0,
-              savings: 0
-            };
-          }
-          acc[month].cost += Number(resource.cost_data.totalCost || 0);
-          acc[month].savings += Number(resource.cost_data.potentialSavings || 0);
-        }
-        return acc;
-      }, processedHistorical);
-
-      // Convert to array and sort by month
-      const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const finalData = Object.values(processedRecent).sort((a, b) => 
-        monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
-      );
-
-      setCostData(finalData);
-    } catch (error) {
-      console.error('Error fetching cost data:', error);
+      setCostData(formattedData);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching cost data",
+        description: err instanceof Error ? err.message : "An unexpected error occurred."
+      });
     } finally {
       setIsLoading(false);
     }
@@ -103,80 +56,99 @@ export function CostChart() {
     }
   }, [session?.user]);
 
-  if (isLoading) {
-    return (
-      <Card className="col-span-4 animate-fade-in">
-        <CardContent className="flex items-center justify-center h-[300px]">
-          <Loader2 className="h-6 w-6 animate-spin" />
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="col-span-4 animate-fade-in">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle className="text-xl font-semibold">Cost Overview</CardTitle>
-        <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-          <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-[#0EA5E9] mr-2" />
-            <span className="font-medium">Costs</span>
+    <Card className="col-span-4">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-xl font-bold">Cost Overview (Last 12 Months)</CardTitle>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1">
+            <div className="h-3 w-3 rounded-full bg-[#4e79a7]" />
+            <span className="text-sm text-muted-foreground">Azure</span>
           </div>
-          <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-[#22C55E] mr-2" />
-            <span className="font-medium">Potential Savings</span>
+          <div className="flex items-center space-x-1">
+            <div className="h-3 w-3 rounded-full bg-[#f28e2b]" />
+            <span className="text-sm text-muted-foreground">AWS</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <div className="h-3 w-3 rounded-full bg-[#e15759]" />
+            <span className="text-sm text-muted-foreground">GCP</span>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pl-2">
-        <div className="h-[350px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={costData}
-              margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
-              barGap={0}
-              barCategoryGap="25%"
-            >
-              <XAxis 
-                dataKey="month" 
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                dy={10}
-              />
-              <YAxis 
-                axisLine={false}
-                tickLine={false}
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                dx={-10}
-              />
-              <Tooltip 
-                cursor={{ fill: 'hsl(var(--muted))' }}
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--background))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  padding: '12px'
-                }}
-                labelStyle={{ color: 'hsl(var(--foreground))' }}
-              />
-              <Bar
-                dataKey="cost"
-                fill="#0EA5E9"
-                radius={[4, 4, 0, 0]}
-                stackId="stack"
-                maxBarSize={50}
-              />
-              <Bar
-                dataKey="savings"
-                fill="#22C55E"
-                radius={[4, 4, 0, 0]}
-                stackId="stack"
-                maxBarSize={50}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <CardContent>
+        {isLoading ? (
+          <div className="flex justify-center items-center h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="h-[400px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={costData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--muted))"
+                  opacity={0.4}
+                />
+                <XAxis
+                  dataKey="month"
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  dy={10}
+                />
+                <YAxis
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `$${value}`}
+                  dx={-10}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--background))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    padding: '12px'
+                  }}
+                  formatter={(value: number) => [`$${value}`, '']}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="azure_cost"
+                  name="Azure"
+                  stroke="#4e79a7"
+                  strokeWidth={2}
+                  dot={{ r: 4, strokeWidth: 2 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="aws_cost"
+                  name="AWS"
+                  stroke="#f28e2b"
+                  strokeWidth={2}
+                  dot={{ r: 4, strokeWidth: 2 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="gcp_cost"
+                  name="GCP"
+                  stroke="#e15759"
+                  strokeWidth={2}
+                  dot={{ r: 4, strokeWidth: 2 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
