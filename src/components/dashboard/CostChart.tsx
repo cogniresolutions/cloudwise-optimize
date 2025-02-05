@@ -11,6 +11,20 @@ interface CostData {
   savings: number;
 }
 
+interface HistoricalCostData {
+  cost_date: string;
+  total_cost: number;
+  potential_savings: number;
+}
+
+interface CloudResourceCostData {
+  last_updated_at: string;
+  cost_data: {
+    totalCost?: number;
+    potentialSavings?: number;
+  };
+}
+
 export function CostChart() {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -23,8 +37,7 @@ export function CostChart() {
         .from('historical_cost_data')
         .select('cost_date, total_cost, potential_savings')
         .eq('user_id', session?.user.id)
-        .gte('cost_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
-        .order('cost_date', { ascending: true });
+        .gte('cost_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()) as { data: HistoricalCostData[] | null, error: any };
 
       if (historicalError) throw historicalError;
 
@@ -34,7 +47,7 @@ export function CostChart() {
         .select('cost_data, last_updated_at')
         .eq('user_id', session?.user.id)
         .eq('resource_type', 'cost')
-        .order('last_updated_at', { ascending: true });
+        .order('last_updated_at', { ascending: true }) as { data: CloudResourceCostData[] | null, error: any };
 
       if (recentError) throw recentError;
 
@@ -64,10 +77,8 @@ export function CostChart() {
               savings: 0
             };
           }
-          // Safely access cost_data properties
-          const costData = resource.cost_data as Record<string, any>;
-          acc[month].cost += Number(costData.totalCost || 0);
-          acc[month].savings += Number(costData.potentialSavings || 0);
+          acc[month].cost += Number(resource.cost_data.totalCost || 0);
+          acc[month].savings += Number(resource.cost_data.potentialSavings || 0);
         }
         return acc;
       }, processedHistorical);
