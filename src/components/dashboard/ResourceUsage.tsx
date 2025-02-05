@@ -12,7 +12,7 @@ interface ResourceType {
   resource_type: string;
   count: number;
   usage_percentage: number;
-  cost?: number;
+  cost: number | null;
 }
 
 interface ResourceUsageProps {
@@ -25,7 +25,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
 
-  const getIconForResourceType = (type: string): React.ElementType => {
+  const getIconForResourceType = (type: string) => {
     switch (type.toLowerCase()) {
       case 'virtual machines':
         return Server;
@@ -74,11 +74,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (isStale) {
         console.log('Data is stale, fetching from Azure...');
-        const { data, error } = await supabase.functions.invoke('fetch-azure-resource-counts');
+        const { data, error: functionError } = await supabase.functions.invoke('fetch-azure-resource-counts');
         
-        if (error) {
-          console.error('Error invoking function:', error);
-          throw error;
+        if (functionError) {
+          console.error('Error invoking function:', functionError);
+          throw functionError;
         }
 
         if (!data?.data) {
@@ -140,14 +140,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     // Return mock data for other providers
     const mockData = {
       aws: [
-        { resource_type: "EC2 Instances", count: 45, usage_percentage: 65 },
-        { resource_type: "RDS Databases", count: 12, usage_percentage: 78 },
-        { resource_type: "EBS Volumes", count: 89, usage_percentage: 45 },
+        { resource_type: "EC2 Instances", count: 45, usage_percentage: 65, cost: 1234.56 },
+        { resource_type: "RDS Databases", count: 12, usage_percentage: 78, cost: 567.89 },
+        { resource_type: "EBS Volumes", count: 89, usage_percentage: 45, cost: 123.45 },
       ],
       gcp: [
-        { resource_type: "Compute Instances", count: 29, usage_percentage: 58 },
-        { resource_type: "Cloud SQL", count: 6, usage_percentage: 81 },
-        { resource_type: "Persistent Disks", count: 42, usage_percentage: 48 },
+        { resource_type: "Compute Instances", count: 29, usage_percentage: 58, cost: 987.65 },
+        { resource_type: "Cloud SQL", count: 6, usage_percentage: 81, cost: 432.10 },
+        { resource_type: "Persistent Disks", count: 42, usage_percentage: 48, cost: 234.56 },
       ],
     };
 
@@ -157,7 +157,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           <CardTitle>Resource Usage</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6">
+          <div className="space-y-4">
             {mockData[provider as keyof typeof mockData].map((resource) => {
               const Icon = getIconForResourceType(resource.resource_type);
               return (
@@ -171,6 +171,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                       <p className="text-sm text-muted-foreground">
                         {resource.count} resources
                       </p>
+                      {resource.cost !== undefined && (
+                        <p className="flex items-center text-sm text-green-600">
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          {resource.cost.toFixed(2)} USD
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -193,46 +199,51 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
   return (
     <Card className="col-span-4 animate-fade-in">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <CardTitle>Resource Usage</CardTitle>
-        {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
       </CardHeader>
       <CardContent>
-        <div className="grid gap-6">
-          {resources.map((resource) => {
-            const Icon = getIconForResourceType(resource.resource_type);
-            return (
-              <div key={resource.resource_type} className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="p-2 bg-primary/10 rounded-full">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{resource.resource_type}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {resource.count} resources
-                    </p>
-                    {resource.cost !== undefined && (
-                      <p className="flex items-center text-sm text-green-600">
-                        <DollarSign className="h-3 w-3 mr-1" />
-                        {resource.cost.toFixed(2)} USD
+        {isLoading ? (
+          <div className="flex justify-center p-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {resources.map((resource) => {
+              const Icon = getIconForResourceType(resource.resource_type);
+              return (
+                <div key={resource.resource_type} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{resource.resource_type}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {resource.count} resources
                       </p>
-                    )}
+                      {resource.cost !== null && (
+                        <p className="flex items-center text-sm text-green-600">
+                          <DollarSign className="h-3 w-3 mr-1" />
+                          {resource.cost.toFixed(2)} USD
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${resource.usage_percentage}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">{resource.usage_percentage}%</span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${resource.usage_percentage}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-medium">{resource.usage_percentage}%</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
