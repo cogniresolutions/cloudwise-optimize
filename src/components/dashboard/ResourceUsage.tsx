@@ -323,24 +323,26 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 }
 
 function getIconForResourceType(type: string) {
+  const iconProps = { className: "h-5 w-5 text-primary" };
+  
   switch (type.toLowerCase()) {
     case 'virtual machines':
-      return <Server className="h-5 w-5 text-primary" />;
+      return <Server {...iconProps} />;
     case 'sql databases':
-      return <Database className="h-5 w-5 text-primary" />;
+      return <Database {...iconProps} />;
     case 'storage accounts':
-      return <HardDrive className="h-5 w-5 text-primary" />;
+      return <HardDrive {...iconProps} />;
     case 'app services':
-      return <Cloud className="h-5 w-5 text-primary" />;
+      return <Cloud {...iconProps} />;
     case 'kubernetes clusters':
-      return <Cpu className="h-5 w-5 text-primary" />;
+      return <Cpu {...iconProps} />;
     case 'cognitive services':
-      return <BrainCog className="h-5 w-5 text-primary" />;
+      return <BrainCog {...iconProps} />;
     case 'azure openai':
-      return <Bot className="h-5 w-5 text-primary" />;
+      return <Bot {...iconProps} />;
     case 'container apps':
-      return <LayoutGrid className="h-5 w-5 text-primary" />;
+      return <LayoutGrid {...iconProps} />;
     default:
-      return <Server className="h-5 w-5 text-primary" />;
+      return <Server {...iconProps} />;
   }
 }
