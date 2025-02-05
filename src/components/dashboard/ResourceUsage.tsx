@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  LogOut, CheckCircle, CloudOff
+  CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -18,6 +18,13 @@ interface ResourceType {
 
 interface ResourceUsageProps {
   provider: string;
+}
+
+interface AzureCredentials {
+  clientId: string;
+  clientSecret: string;
+  tenantId: string;
+  subscriptionId: string;
 }
 
 export function ResourceUsage({ provider }: ResourceUsageProps) {
@@ -35,22 +42,31 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       console.log('Fetching Azure resource counts for user:', session?.user.id);
       
       // First check if we have an active Azure connection
-      const { data: connections, error: connectionError } = await supabase
+      const { data: connection, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('*')
         .eq('provider', 'azure')
         .eq('user_id', session?.user.id)
         .eq('is_active', true)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (connectionError || !connections) {
+      if (connectionError) {
+        console.error('Error fetching Azure connection:', connectionError);
+        setIsAzureConnected(false);
+        return;
+      }
+
+      if (!connection) {
         console.log('No active Azure connection found');
         setIsAzureConnected(false);
         return;
       }
 
-      // Check if credentials exist and are valid
-      if (!connections.credentials || !connections.credentials.clientId) {
+      // Type check and validate credentials
+      const credentials = connection.credentials as AzureCredentials;
+      if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
         console.log('Invalid Azure credentials');
         setIsAzureConnected(false);
         return;
@@ -141,7 +157,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   }, [session?.user, provider]);
 
   if (provider !== 'azure') {
-    // Return mock data for other providers
     const mockData = {
       aws: [
         { resource_type: "EC2 Instances", count: 45, usage_percentage: 65, cost: 1234.56 },
