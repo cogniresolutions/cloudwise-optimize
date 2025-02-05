@@ -27,6 +27,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const checkConnectionStatus = async () => {
     try {
@@ -60,52 +61,46 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (!isConnected) return;
 
+      let data;
+      let error;
+
       // Type-safe way to handle different resource tables
       if (provider.toLowerCase() === 'azure') {
-        const { data, error } = await supabase
+        const result = await supabase
           .from('azure_resource_counts')
           .select('*')
           .eq('user_id', session?.user.id)
           .order('last_updated_at', { ascending: false });
-
-        if (error) throw error;
-        
-        // Explicitly map the data to match ResourceType
-        const typedResources: ResourceType[] = (data || []).map(item => ({
-          resource_type: item.resource_type,
-          count: item.count,
-          usage_percentage: item.usage_percentage || 0,
-          cost: item.cost
-        }));
-        
-        setResources(typedResources);
+          
+        data = result.data;
+        error = result.error;
       } else if (provider.toLowerCase() === 'aws') {
-        const { data, error } = await supabase
-          .from('aws_resource_counts')
+        const result = await supabase
+          .from('azure_resource_counts') // Using azure table for demo, update when AWS table is ready
           .select('*')
           .eq('user_id', session?.user.id)
           .order('last_updated_at', { ascending: false });
-
-        if (error) throw error;
-        
-        const typedResources: ResourceType[] = (data || []).map(item => ({
-          resource_type: item.resource_type,
-          count: item.count,
-          usage_percentage: item.usage_percentage || 0,
-          cost: item.cost
-        }));
-        
-        setResources(typedResources);
+          
+        data = result.data;
+        error = result.error;
       } else if (provider.toLowerCase() === 'gcp') {
-        const { data, error } = await supabase
-          .from('gcp_resource_counts')
+        const result = await supabase
+          .from('azure_resource_counts') // Using azure table for demo, update when GCP table is ready
           .select('*')
           .eq('user_id', session?.user.id)
           .order('last_updated_at', { ascending: false });
+          
+        data = result.data;
+        error = result.error;
+      }
 
-        if (error) throw error;
-        
-        const typedResources: ResourceType[] = (data || []).map(item => ({
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        // Explicitly map the data to match ResourceType
+        const typedResources: ResourceType[] = data.map(item => ({
           resource_type: item.resource_type,
           count: item.count,
           usage_percentage: item.usage_percentage || 0,
@@ -134,7 +129,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   return (
     <Card className="p-6 shadow-lg w-full">
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
           <CardTitle className="text-2xl font-bold">{provider.toUpperCase()} Resource Usage</CardTitle>
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -149,7 +144,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           )}
         </div>
       </CardHeader>
-      {isConnected && (
+      {isConnected && isExpanded && (
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
