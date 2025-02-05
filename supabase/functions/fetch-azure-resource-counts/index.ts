@@ -219,14 +219,6 @@ serve(async (req) => {
               }
             ),
             fetch(
-              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CognitiveServices/accounts?api-version=2023-05-01`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${tokenData.access_token}`,
-                },
-              }
-            ),
-            fetch(
               `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.App/containerApps?api-version=2023-05-01`,
               {
                 headers: {
@@ -254,7 +246,6 @@ serve(async (req) => {
             aksResponse,
             cosmosResponse,
             cognitiveResponse,
-            openaiResponse,
             containerAppsResponse
           ] = responses;
 
@@ -266,7 +257,6 @@ serve(async (req) => {
             aksData,
             cosmosData,
             cognitiveData,
-            openaiData,
             containerAppsData
           ] = await Promise.all([
             vmResponse.json(),
@@ -276,102 +266,115 @@ serve(async (req) => {
             aksResponse.json(),
             cosmosResponse.json(),
             cognitiveResponse.json(),
-            openaiResponse.json(),
             containerAppsResponse.json()
           ]);
 
           console.log('Successfully fetched Azure resources')
 
-          try {
-            // Delete existing resource counts for this user
-            await supabaseClient
-              .from('azure_resource_counts')
-              .delete()
-              .eq('user_id', user.id)
-
-            // Insert new resource counts
-            const resourceCounts = [
-              {
-                resource_type: 'Virtual Machines',
-                count: vmData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
+          // Add cost management API request
+          const costResponse = await fetch(
+            `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CostManagement/query?api-version=2021-10-01`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
               },
-              {
-                resource_type: 'SQL Databases',
-                count: sqlData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Storage Accounts',
-                count: storageData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'App Services',
-                count: webAppsData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Kubernetes Clusters',
-                count: aksData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Cosmos DB',
-                count: cosmosData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Cognitive Services',
-                count: cognitiveData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Azure OpenAI',
-                count: openaiData.value?.filter((service: any) => 
-                  service.kind?.toLowerCase().includes('openai'))?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              },
-              {
-                resource_type: 'Container Apps',
-                count: containerAppsData.value?.length || 0,
-                usage_percentage: Math.floor(Math.random() * 100),
-              }
-            ]
-
-            const { error: insertError } = await supabaseClient
-              .from('azure_resource_counts')
-              .insert(resourceCounts.map(resource => ({
-                user_id: user.id,
-                resource_type: resource.resource_type,
-                count: resource.count,
-                usage_percentage: resource.usage_percentage,
-                last_updated_at: new Date().toISOString(),
-              })))
-
-            if (insertError) {
-              console.error('Error inserting resource counts:', insertError)
-              throw insertError
-            }
-
-            console.log('Successfully updated resource counts in database')
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                data: resourceCounts
+              body: JSON.stringify({
+                type: 'ActualCost',
+                timeframe: 'MonthToDate',
+                dataset: {
+                  granularity: 'None',
+                  aggregation: {
+                    totalCost: {
+                      name: 'Cost',
+                      function: 'Sum',
+                    },
+                  },
+                  grouping: [
+                    {
+                      type: 'Dimension',
+                      name: 'ResourceType',
+                    },
+                  ],
+                },
               }),
-              {
-                headers: {
-                  ...corsHeaders,
-                  'Content-Type': 'application/json'
-                }
-              }
-            )
-          } catch (error) {
-            console.error('Error storing resource counts:', error)
-            throw error
-          }
+            }
+          );
+
+          const costData = await costResponse.json();
+
+          // Process responses and create resource counts with costs
+          const resourceCounts = [
+            {
+              resource_type: 'Virtual Machines',
+              count: vmData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.Compute/virtualMachines'),
+            },
+            {
+              resource_type: 'SQL Databases',
+              count: sqlData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.Sql/servers'),
+            },
+            {
+              resource_type: 'Storage Accounts',
+              count: storageData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.Storage/storageAccounts'),
+            },
+            {
+              resource_type: 'App Services',
+              count: webAppsData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.Web/sites'),
+            },
+            {
+              resource_type: 'Kubernetes Clusters',
+              count: aksData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.ContainerService/managedClusters'),
+            },
+            {
+              resource_type: 'Cosmos DB',
+              count: cosmosData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.DocumentDB/databaseAccounts'),
+            },
+            {
+              resource_type: 'Cognitive Services',
+              count: cognitiveData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.CognitiveServices/accounts'),
+            },
+            {
+              resource_type: 'Container Apps',
+              count: containerAppsData.value?.length || 0,
+              usage_percentage: Math.floor(Math.random() * 100),
+              cost: getCostForResourceType(costData, 'Microsoft.App/containerApps'),
+            }
+          ]
+
+          // Update database
+          const { error: updateError } = await supabaseClient
+            .from('azure_resource_counts')
+            .upsert(resourceCounts.map(resource => ({
+              user_id: user.id,
+              resource_type: resource.resource_type,
+              count: resource.count,
+              usage_percentage: resource.usage_percentage,
+              cost: resource.cost,
+              last_updated_at: new Date().toISOString(),
+            })));
+
+          if (updateError) throw updateError;
+
+          return new Response(
+            JSON.stringify({ success: true, data: resourceCounts }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+
         } catch (error) {
           console.error('Error fetching Azure resources:', error)
           throw error
@@ -401,3 +404,10 @@ serve(async (req) => {
     )
   }
 })
+
+function getCostForResourceType(costData: any, resourceType: string): number {
+  const resourceCost = costData.properties?.rows?.find(
+    (row: any[]) => row[0] === resourceType
+  );
+  return resourceCost ? parseFloat(resourceCost[1]) : 0;
+}
