@@ -87,11 +87,14 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       
       data?.forEach((connection) => {
         if (connection.provider in newStatus) {
-          const lastSyncTime = new Date(connection.last_sync_at).getTime();
+          // Check if the connection is active, has valid credentials, and was synced recently
+          const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
           const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
           
           newStatus[connection.provider as keyof typeof newStatus] = 
-            connection.is_active && lastSyncTime > oneHourAgo && connection.credentials !== null;
+            connection.is_active && 
+            connection.credentials !== null &&
+            lastSyncTime > oneHourAgo;
         }
       });
 

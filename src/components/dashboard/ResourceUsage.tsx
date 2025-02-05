@@ -69,20 +69,31 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return;
       }
 
-      if (!connections || connections.length === 0) {
+      if (!connections || connections.length === 0 || !connections[0].credentials) {
         console.log('No active Azure connection found');
         setIsAzureConnected(false);
         return;
       }
 
       const connection = connections[0];
+      const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
+      const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
 
-      // Type check and validate credentials using type guard
+      // Check if the connection is still valid (synced within the last hour)
+      if (lastSyncTime <= oneHourAgo) {
+        console.log('Azure connection is stale');
+        setIsAzureConnected(false);
+        return;
+      }
+
+      // Type check and validate credentials
       if (!isAzureCredentials(connection.credentials)) {
         console.error('Invalid Azure credentials structure:', connection.credentials);
         setIsAzureConnected(false);
         return;
       }
+
+      setIsAzureConnected(true);
 
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
@@ -104,23 +115,19 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         
         if (functionError) {
           console.error('Error invoking function:', functionError);
-          setIsAzureConnected(false);
           throw functionError;
         }
 
         if (!newData?.data) {
           console.error('Invalid response from function:', newData);
-          setIsAzureConnected(false);
           throw new Error('Invalid response from server');
         }
         
         setResources(newData.data);
-        setIsAzureConnected(true);
         console.log('Successfully updated resources from Azure');
       } else {
         console.log('Using cached data from Supabase');
         setResources(resourceCounts);
-        setIsAzureConnected(true);
       }
     } catch (err) {
       console.error('Error in fetchResourceCounts:', err);
