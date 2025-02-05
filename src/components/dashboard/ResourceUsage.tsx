@@ -58,21 +58,31 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         throw new Error("No valid Azure credentials found");
       }
 
-      const credentials = connectionData.credentials as AzureCredentials;
+      // Type assertion with runtime check
+      const credentials = connectionData.credentials as { [key: string]: any };
+      if (!credentials.tenantId || !credentials.clientId || 
+          !credentials.clientSecret || !credentials.subscriptionId) {
+        throw new Error("Invalid Azure credentials format");
+      }
+
+      const azureCredentials: AzureCredentials = {
+        tenantId: credentials.tenantId,
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        subscriptionId: credentials.subscriptionId
+      };
       
       const credential = new ClientSecretCredential(
-        credentials.tenantId,
-        credentials.clientId,
-        credentials.clientSecret
+        azureCredentials.tenantId,
+        azureCredentials.clientId,
+        azureCredentials.clientSecret
       );
 
-      const subscriptionId = credentials.subscriptionId;
-
       // Initialize clients
-      const computeClient = new ComputeManagementClient(credential, subscriptionId);
-      const storageClient = new StorageManagementClient(credential, subscriptionId);
-      const sqlClient = new SqlManagementClient(credential, subscriptionId);
-      const consumptionClient = new ConsumptionManagementClient(credential, subscriptionId);
+      const computeClient = new ComputeManagementClient(credential, azureCredentials.subscriptionId);
+      const storageClient = new StorageManagementClient(credential, azureCredentials.subscriptionId);
+      const sqlClient = new SqlManagementClient(credential, azureCredentials.subscriptionId);
+      const consumptionClient = new ConsumptionManagementClient(credential, azureCredentials.subscriptionId);
 
       // Fetch resources using async iterators
       const vms = [];
@@ -91,16 +101,13 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       }
 
       const usageDetails = [];
-      for await (const usage of consumptionClient.usageDetails.list({
-        expand: 'properties',
-        metric: 'ActualCost'
-      })) {
+      for await (const usage of consumptionClient.usageDetails.list()) {
         usageDetails.push(usage);
       }
 
       const getResourceCost = (resourceType: string) => {
         const usage = usageDetails.find(
-          (item) => item.instanceName?.toLowerCase().includes(resourceType.toLowerCase())
+          (item: any) => item.instanceName?.toLowerCase().includes(resourceType.toLowerCase())
         );
         return usage?.pretaxCost ? parseFloat(usage.pretaxCost) : 0;
       };
@@ -130,12 +137,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       setIsConnected(true);
     } catch (error) {
       console.error("Error fetching Azure resources:", error);
+      setIsConnected(false);
       toast({
         variant: "destructive",
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to fetch Azure resources",
       });
-      setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
