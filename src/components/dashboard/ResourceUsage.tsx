@@ -27,37 +27,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isAzureConnected, setIsAzureConnected] = useState(false);
 
-  const getIconForResourceType = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'virtual machines':
-        return Server;
-      case 'sql databases':
-      case 'sql servers':
-      case 'cosmos db':
-        return Database;
-      case 'storage accounts':
-        return HardDrive;
-      case 'app services':
-        return Cloud;
-      case 'kubernetes clusters':
-        return Cpu;
-      case 'cognitive services':
-        return BrainCog;
-      case 'azure openai':
-        return Bot;
-      case 'container apps':
-        return LayoutGrid;
-      default:
-        return Server;
-    }
-  };
-
   const fetchResourceCounts = async () => {
     if (provider !== 'azure') return;
     
     setIsLoading(true);
     try {
-      console.log('Fetching Azure resource counts...');
+      console.log('Fetching Azure resource counts for user:', session?.user.id);
       
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
@@ -79,11 +54,13 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         
         if (functionError) {
           console.error('Error invoking function:', functionError);
+          setIsAzureConnected(false);
           throw functionError;
         }
 
         if (!newData?.data) {
           console.error('Invalid response from function:', newData);
+          setIsAzureConnected(false);
           throw new Error('Invalid response from server');
         }
         
@@ -281,4 +258,35 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       </CardContent>
     </Card>
   );
+}
+
+function getIconForResourceType(type: string) {
+  switch (type.toLowerCase()) {
+    case 'virtual machines':
+    case 'ec2 instances':
+    case 'compute instances':
+      return Server;
+    case 'sql databases':
+    case 'sql servers':
+    case 'cosmos db':
+    case 'rds databases':
+    case 'cloud sql':
+      return Database;
+    case 'storage accounts':
+    case 'ebs volumes':
+    case 'persistent disks':
+      return HardDrive;
+    case 'app services':
+      return Cloud;
+    case 'kubernetes clusters':
+      return Cpu;
+    case 'cognitive services':
+      return BrainCog;
+    case 'azure openai':
+      return Bot;
+    case 'container apps':
+      return LayoutGrid;
+    default:
+      return Server;
+  }
 }
