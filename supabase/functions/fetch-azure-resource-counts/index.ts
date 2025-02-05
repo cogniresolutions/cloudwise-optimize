@@ -158,6 +158,7 @@ serve(async (req) => {
           .eq('id', connections.id)
 
         try {
+          console.log('Fetching Azure resources...')
           const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
             fetch(
               `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
@@ -185,13 +186,24 @@ serve(async (req) => {
             )
           ])
 
-          const responses = await Promise.all([
-            vmResponse.json().catch(e => ({ value: [] })),
-            sqlResponse.json().catch(e => ({ value: [] })),
-            storageResponse.json().catch(e => ({ value: [] }))
-          ])
+          // Check if any of the responses failed
+          for (const [name, response] of [
+            ['VM', vmResponse],
+            ['SQL', sqlResponse],
+            ['Storage', storageResponse]
+          ]) {
+            if (!response.ok) {
+              const errorText = await response.text()
+              console.error(`Failed to fetch ${name} resources:`, errorText)
+              throw new Error(`Failed to fetch ${name} resources: ${response.status} ${response.statusText}`)
+            }
+          }
 
-          const [vmData, sqlData, storageData] = responses
+          const [vmData, sqlData, storageData] = await Promise.all([
+            vmResponse.json(),
+            sqlResponse.json(),
+            storageResponse.json()
+          ])
 
           console.log('Successfully fetched Azure resources')
 
