@@ -18,35 +18,67 @@ export function CostChart() {
 
   const fetchCostData = async () => {
     try {
-      const { data: resources, error } = await supabase
+      // First try to get data from historical_cost_data
+      const { data: historicalData, error: historicalError } = await supabase
+        .from('historical_cost_data')
+        .select('cost_date, total_cost, potential_savings')
+        .eq('user_id', session?.user.id)
+        .gte('cost_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString())
+        .order('cost_date', { ascending: true });
+
+      if (historicalError) throw historicalError;
+
+      // Then get recent data from cloud_resources
+      const { data: recentData, error: recentError } = await supabase
         .from('cloud_resources')
         .select('cost_data, last_updated_at')
         .eq('user_id', session?.user.id)
         .eq('resource_type', 'cost')
         .order('last_updated_at', { ascending: true });
 
-      if (error) throw error;
+      if (recentError) throw recentError;
 
-      // Process and transform the cost data
-      const processedData = resources.reduce((acc: CostData[], resource) => {
-        if (resource.cost_data && resource.cost_data.properties) {
+      // Process historical data
+      const processedHistorical = historicalData.reduce((acc: Record<string, CostData>, entry) => {
+        const month = new Date(entry.cost_date).toLocaleString('default', { month: 'short' });
+        if (!acc[month]) {
+          acc[month] = {
+            month,
+            cost: 0,
+            savings: 0
+          };
+        }
+        acc[month].cost += Number(entry.total_cost);
+        acc[month].savings += Number(entry.potential_savings);
+        return acc;
+      }, {});
+
+      // Process recent data
+      const processedRecent = recentData.reduce((acc: Record<string, CostData>, resource) => {
+        if (resource.cost_data && typeof resource.cost_data === 'object') {
           const month = new Date(resource.last_updated_at).toLocaleString('default', { month: 'short' });
-          const cost = parseFloat(resource.cost_data.properties.totalCost || 0);
-          const savings = parseFloat(resource.cost_data.properties.potentialSavings || 0);
-
-          // Check if we already have an entry for this month
-          const existingEntry = acc.find(entry => entry.month === month);
-          if (existingEntry) {
-            existingEntry.cost += cost;
-            existingEntry.savings += savings;
-          } else {
-            acc.push({ month, cost, savings });
+          if (!acc[month]) {
+            acc[month] = {
+              month,
+              cost: 0,
+              savings: 0
+            };
           }
+          // Safely access cost_data properties
+          const costData = resource.cost_data as Record<string, any>;
+          acc[month].cost += Number(costData.totalCost || 0);
+          acc[month].savings += Number(costData.potentialSavings || 0);
         }
         return acc;
-      }, []);
+      }, processedHistorical);
 
-      setCostData(processedData);
+      // Convert to array and sort by month
+      const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const finalData = Object.values(processedRecent).sort((a, b) => 
+        monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
+      );
+
+      setCostData(finalData);
     } catch (error) {
       console.error('Error fetching cost data:', error);
     } finally {
