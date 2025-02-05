@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  CheckCircle, CloudOff
+  CheckCircle, CloudOff, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -20,31 +21,19 @@ interface ResourceUsageProps {
   provider: string;
 }
 
-interface AzureCredentials {
-  clientId: string;
-  clientSecret: string;
-  tenantId: string;
-  subscriptionId: string;
-}
-
-// Type guard to check if an object is AzureCredentials
-function isAzureCredentials(obj: any): obj is AzureCredentials {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    typeof obj.clientId === 'string' &&
-    typeof obj.clientSecret === 'string' &&
-    typeof obj.tenantId === 'string' &&
-    typeof obj.subscriptionId === 'string'
-  );
-}
-
 export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { toast } = useToast();
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isAzureConnected, setIsAzureConnected] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+
+  const toggleRow = (resourceType: string) => {
+    setExpandedRows((prev) =>
+      prev.includes(resourceType) ? prev.filter((r) => r !== resourceType) : [...prev, resourceType]
+    );
+  };
 
   const fetchResourceCounts = async () => {
     if (provider !== 'azure') return;
@@ -53,7 +42,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     try {
       console.log('Fetching Azure resource counts for user:', session?.user.id);
       
-      // First check if we have an active Azure connection
       const { data: connections, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('*')
@@ -69,7 +57,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return;
       }
 
-      if (!connections || connections.length === 0 || !connections[0].credentials) {
+      if (!connections || connections.length === 0) {
         console.log('No active Azure connection found');
         setIsAzureConnected(false);
         localStorage.removeItem('azureConnected');
@@ -82,14 +70,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (lastSyncTime <= oneHourAgo) {
         console.log('Azure connection is stale');
-        setIsAzureConnected(false);
-        localStorage.removeItem('azureConnected');
-        return;
-      }
-
-      // Type check and validate credentials
-      if (!isAzureCredentials(connection.credentials)) {
-        console.error('Invalid Azure credentials structure:', connection.credentials);
         setIsAzureConnected(false);
         localStorage.removeItem('azureConnected');
         return;
@@ -147,7 +127,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     }
   };
 
-  // Check local storage for connection status on mount
   useEffect(() => {
     if (session?.user && provider === 'azure') {
       const storedConnectionStatus = localStorage.getItem('azureConnected');
@@ -191,13 +170,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session?.user, provider]);
-
-  // Initial fetch of resource counts
-  useEffect(() => {
-    if (session?.user && provider === 'azure') {
-      fetchResourceCounts();
-    }
   }, [session?.user, provider]);
 
   if (provider !== 'azure') {
@@ -264,22 +236,18 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <CardTitle>
-              {provider.toUpperCase()} Resource Usage
-            </CardTitle>
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin ml-2" />
-            ) : isAzureConnected ? (
-              <span className="ml-2 text-green-500 flex items-center">
-                <CheckCircle className="h-4 w-4 mr-1" /> Connected
-              </span>
-            ) : (
-              <span className="ml-2 text-red-500 flex items-center">
-                <CloudOff className="h-4 w-4 mr-1" /> Not Connected
-              </span>
-            )}
-          </div>
+          <CardTitle>{provider.toUpperCase()} Resource Usage</CardTitle>
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isAzureConnected ? (
+            <span className="text-green-500 flex items-center">
+              <CheckCircle className="h-4 w-4 mr-1" /> Connected
+            </span>
+          ) : (
+            <span className="text-red-500 flex items-center">
+              <CloudOff className="h-4 w-4 mr-1" /> Not Connected
+            </span>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -288,41 +256,66 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-4">
-            {resources.map((resource) => {
-              const Icon = getIconForResourceType(resource.resource_type);
-              return (
-                <div key={resource.resource_type} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <Icon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{resource.resource_type}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {resource.count} resources
-                      </p>
-                      {resource.cost !== null && (
-                        <p className="flex items-center text-sm text-green-600">
-                          <DollarSign className="h-3 w-3 mr-1" />
-                          {resource.cost.toFixed(2)} USD
-                        </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Resource Type</TableHead>
+                <TableHead>Count</TableHead>
+                <TableHead>Usage %</TableHead>
+                <TableHead>Cost (USD)</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {resources.map((resource) => (
+                <>
+                  <TableRow key={resource.resource_type}>
+                    <TableCell className="font-medium flex items-center">
+                      <div className="p-2 bg-primary/10 rounded-full">
+                        {getIconForResourceType(resource.resource_type)}
+                      </div>
+                      <span className="ml-2">{resource.resource_type}</span>
+                    </TableCell>
+                    <TableCell>{resource.count}</TableCell>
+                    <TableCell>{resource.usage_percentage}%</TableCell>
+                    <TableCell>
+                      {resource.cost !== null ? (
+                        <div className="flex items-center text-green-600">
+                          <DollarSign className="h-4 w-4 mr-1" /> {resource.cost.toFixed(2)}
+                        </div>
+                      ) : (
+                        "N/A"
                       )}
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${resource.usage_percentage}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium">{resource.usage_percentage}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    </TableCell>
+                    <TableCell>
+                      <button 
+                        onClick={() => toggleRow(resource.resource_type)}
+                        className="hover:bg-gray-100 p-1 rounded-full transition-colors"
+                      >
+                        {expandedRows.includes(resource.resource_type) ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(resource.resource_type) && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="bg-gray-50 p-4">
+                        <div className="space-y-2">
+                          <p className="font-medium">Resource Details:</p>
+                          <p className="text-sm text-muted-foreground">
+                            Usage History and Cost Breakdown will appear here...
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
@@ -332,30 +325,22 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 function getIconForResourceType(type: string) {
   switch (type.toLowerCase()) {
     case 'virtual machines':
-    case 'ec2 instances':
-    case 'compute instances':
-      return Server;
+      return <Server className="h-5 w-5 text-primary" />;
     case 'sql databases':
-    case 'sql servers':
-    case 'cosmos db':
-    case 'rds databases':
-    case 'cloud sql':
-      return Database;
+      return <Database className="h-5 w-5 text-primary" />;
     case 'storage accounts':
-    case 'ebs volumes':
-    case 'persistent disks':
-      return HardDrive;
+      return <HardDrive className="h-5 w-5 text-primary" />;
     case 'app services':
-      return Cloud;
+      return <Cloud className="h-5 w-5 text-primary" />;
     case 'kubernetes clusters':
-      return Cpu;
+      return <Cpu className="h-5 w-5 text-primary" />;
     case 'cognitive services':
-      return BrainCog;
+      return <BrainCog className="h-5 w-5 text-primary" />;
     case 'azure openai':
-      return Bot;
+      return <Bot className="h-5 w-5 text-primary" />;
     case 'container apps':
-      return LayoutGrid;
+      return <LayoutGrid className="h-5 w-5 text-primary" />;
     default:
-      return Server;
+      return <Server className="h-5 w-5 text-primary" />;
   }
 }
