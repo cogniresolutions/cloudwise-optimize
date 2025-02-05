@@ -19,7 +19,7 @@ serve(async (req) => {
     console.log('Generating recommendations for resource:', resource.resource_type)
 
     const client = new OpenAIClient(
-      Deno.env.get('AZURE_OPENAI_ENDPOINT')!,
+      "https://neuraconnect.openai.azure.com",
       new AzureKeyCredential(Deno.env.get('AZURE_OPENAI_API_KEY')!)
     )
 
@@ -38,7 +38,7 @@ serve(async (req) => {
     
     Provide clear, actionable steps.`
 
-    const response = await client.getCompletions('gpt-35-turbo', [{ text: prompt }], {
+    const response = await client.getCompletions('gpt-4o-mini', [{ text: prompt }], {
       maxTokens: 200,
       temperature: 0.7,
     })
