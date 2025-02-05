@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Loader2 } from "lucide-react";
@@ -131,9 +131,11 @@ export function CostChart() {
       <CardContent className="pl-2">
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
+            <BarChart
               data={costData}
               margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              barGap={0}
+              barCategoryGap="20%"
             >
               <XAxis 
                 dataKey="month" 
@@ -153,25 +155,19 @@ export function CostChart() {
                   borderRadius: '6px'
                 }}
               />
-              <Area
-                type="monotone"
+              <Bar
                 dataKey="cost"
-                stroke="#0EA5E9"
                 fill="#0EA5E9"
-                strokeWidth={2}
-                fillOpacity={0.1}
-                stackId="1"
+                radius={[4, 4, 0, 0]}
+                stackId="stack"
               />
-              <Area
-                type="monotone"
+              <Bar
                 dataKey="savings"
-                stroke="#22C55E"
                 fill="#22C55E"
-                strokeWidth={2}
-                fillOpacity={0.1}
-                stackId="1"
+                radius={[4, 4, 0, 0]}
+                stackId="stack"
               />
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       </CardContent>
