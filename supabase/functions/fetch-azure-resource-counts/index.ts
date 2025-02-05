@@ -239,31 +239,33 @@ serve(async (req) => {
       },
     ]
 
-    // Update resource counts in database
-    const { error: upsertError } = await supabaseClient
-      .from('azure_resource_counts')
-      .upsert(
-        resourceCounts.map(resource => ({
+    // Update resource counts in database using upsert
+    for (const resource of resourceCounts) {
+      const { error: upsertError } = await supabaseClient
+        .from('azure_resource_counts')
+        .upsert({
           user_id: user.id,
           resource_type: resource.resource_type,
           count: resource.count,
           usage_percentage: resource.usage_percentage,
           last_updated_at: new Date().toISOString(),
-        }))
-      )
+        }, {
+          onConflict: 'user_id,resource_type'
+        })
 
-    if (upsertError) {
-      console.error('Error upserting resource counts:', upsertError)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to update resource counts in database'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
-        }
-      )
+      if (upsertError) {
+        console.error('Error upserting resource count:', upsertError)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Failed to update resource counts in database'
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500
+          }
+        )
+      }
     }
 
     console.log('Successfully updated resource counts in database')
