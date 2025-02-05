@@ -66,12 +66,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       if (connectionError) {
         console.error('Error fetching Azure connection:', connectionError);
         setIsAzureConnected(false);
+        localStorage.removeItem('azureConnected');
         return;
       }
 
       if (!connections || connections.length === 0 || !connections[0].credentials) {
         console.log('No active Azure connection found');
         setIsAzureConnected(false);
+        localStorage.removeItem('azureConnected');
         return;
       }
 
@@ -83,6 +85,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       if (lastSyncTime <= oneHourAgo) {
         console.log('Azure connection is stale');
         setIsAzureConnected(false);
+        localStorage.removeItem('azureConnected');
         return;
       }
 
@@ -90,10 +93,13 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       if (!isAzureCredentials(connection.credentials)) {
         console.error('Invalid Azure credentials structure:', connection.credentials);
         setIsAzureConnected(false);
+        localStorage.removeItem('azureConnected');
         return;
       }
 
       setIsAzureConnected(true);
+      localStorage.setItem('azureConnected', 'true');
+      localStorage.setItem('azureLastSync', lastSyncTime.toString());
 
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
@@ -132,6 +138,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     } catch (err) {
       console.error('Error in fetchResourceCounts:', err);
       setIsAzureConnected(false);
+      localStorage.removeItem('azureConnected');
       toast({
         variant: "destructive",
         title: "Error",
@@ -141,6 +148,27 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       setIsLoading(false);
     }
   };
+
+  // Check local storage for connection status on mount
+  useEffect(() => {
+    if (session?.user && provider === 'azure') {
+      const storedConnectionStatus = localStorage.getItem('azureConnected');
+      const storedLastSync = localStorage.getItem('azureLastSync');
+      
+      if (storedConnectionStatus === 'true' && storedLastSync) {
+        const lastSyncTime = parseInt(storedLastSync);
+        const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
+        
+        if (lastSyncTime > oneHourAgo) {
+          setIsAzureConnected(true);
+          fetchResourceCounts();
+        } else {
+          localStorage.removeItem('azureConnected');
+          localStorage.removeItem('azureLastSync');
+        }
+      }
+    }
+  }, [session?.user, provider]);
 
   // Set up real-time subscription for resource count updates
   useEffect(() => {
@@ -168,7 +196,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     };
   }, [session?.user, provider]);
 
-  // Initial fetch of resource counts and connection status
+  // Initial fetch of resource counts
   useEffect(() => {
     if (session?.user && provider === 'azure') {
       fetchResourceCounts();
