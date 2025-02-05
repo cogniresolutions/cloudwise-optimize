@@ -56,13 +56,14 @@ serve(async (req) => {
       .eq('provider', 'azure')
       .eq('user_id', user.id)
       .eq('is_active', true)
+      .single()
 
     if (connectionError) {
-      console.error('Error fetching Azure connections:', connectionError)
+      console.error('Error fetching Azure connection:', connectionError)
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Failed to fetch Azure connections'
+          error: 'Failed to fetch Azure connection'
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -71,12 +72,12 @@ serve(async (req) => {
       )
     }
 
-    if (!connections || connections.length === 0) {
-      console.error('No active Azure connections found')
+    if (!connections) {
+      console.error('No active Azure connection found')
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'No active Azure connections found'
+          error: 'No active Azure connection found'
         }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -85,16 +86,14 @@ serve(async (req) => {
       )
     }
 
-    // Use the first active connection
-    const connection = connections[0]
-    const { credentials } = connection
+    const { credentials } = connections
 
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
+    if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
       console.error('Invalid Azure credentials structure')
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('id', connection.id)
+        .eq('id', connections.id)
 
       return new Response(
         JSON.stringify({
@@ -129,11 +128,11 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json()
     
     if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('Failed to get Azure token:', JSON.stringify(tokenData, null, 2))
+      console.error('Failed to get Azure token:', tokenData)
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('id', connection.id)
+        .eq('id', connections.id)
 
       return new Response(
         JSON.stringify({
@@ -155,7 +154,7 @@ serve(async (req) => {
         last_sync_at: new Date().toISOString(),
         is_active: true 
       })
-      .eq('id', connection.id)
+      .eq('id', connections.id)
 
     console.log('Successfully obtained Azure token, fetching resources')
 
@@ -271,7 +270,7 @@ serve(async (req) => {
         }
       )
     } catch (error) {
-      console.error('Error storing resource counts:', JSON.stringify(error, null, 2))
+      console.error('Error storing resource counts:', error)
       return new Response(
         JSON.stringify({
           success: false,
