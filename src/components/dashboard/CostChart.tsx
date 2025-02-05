@@ -63,9 +63,9 @@ export function CostChart() {
   }, [session?.user]);
 
   return (
-    <Card className="p-4 shadow-lg">
-      <CardHeader>
-        <CardTitle>Cost & Savings Overview (Last 12 Months)</CardTitle>
+    <Card className="p-6 shadow-lg w-full">
+      <CardHeader className="text-center">
+        <CardTitle className="text-2xl font-bold">Cost & Savings Overview (Last 12 Months)</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -74,7 +74,7 @@ export function CostChart() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={costData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={costData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
               <XAxis dataKey="month" stroke="#8884d8" />
               <YAxis stroke="#8884d8" tickFormatter={(value) => `$${value}`} />
@@ -87,7 +87,7 @@ export function CostChart() {
                   padding: '12px'
                 }}
               />
-              <Legend verticalAlign="top" height={36} />
+              <Legend verticalAlign="top" align="center" height={36} />
               
               {/* Azure Data */}
               <Bar dataKey="azure_total_cost" name="Azure Total Cost" stackId="azure" fill="#4e79a7" />
