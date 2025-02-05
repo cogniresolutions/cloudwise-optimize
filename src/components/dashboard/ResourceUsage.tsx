@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
@@ -99,15 +99,44 @@ export default function ResourceUsage({ provider }: ResourceUsageProps) {
 
   const generateOptimizationRecommendations = (resource: ResourceType) => {
     if (resource.resource_type.toLowerCase() === 'azure openai') {
-      if (resource.usage_percentage > 80) {
-        return "Consider switching to reserved instances or optimizing model usage to reduce costs.";
-      } else if (resource.usage_percentage < 20) {
-        return "Your Azure OpenAI resources are underutilized. Review scaling and usage patterns to optimize costs.";
-      } else {
-        return "Azure OpenAI usage is within optimal range. Monitor regularly for fluctuations.";
+      const { usage_percentage, cost } = resource;
+      
+      // High usage recommendations
+      if (usage_percentage > 80) {
+        return `High usage detected (${usage_percentage}%). Consider: 
+          1. Implementing token quotas per endpoint
+          2. Using model compression techniques
+          3. Implementing caching for common requests
+          4. Evaluating cheaper model alternatives for non-critical tasks`;
+      } 
+      // Low usage recommendations
+      else if (usage_percentage < 20) {
+        return `Low usage detected (${usage_percentage}%). Consider: 
+          1. Consolidating endpoints to reduce costs
+          2. Implementing auto-scaling
+          3. Reviewing and optimizing prompt lengths
+          4. Analyzing usage patterns to optimize deployment times`;
+      }
+      // Cost-based recommendations
+      else if (cost && cost > 1000) {
+        return `High costs detected ($${cost.toFixed(2)}). Consider: 
+          1. Implementing rate limiting
+          2. Using fine-tuned models for specific tasks
+          3. Monitoring and optimizing token usage
+          4. Setting up cost alerts and budgets`;
+      }
+      // Optimal usage
+      else {
+        return `Usage is optimal (${usage_percentage}%). Recommendations: 
+          1. Continue monitoring usage patterns
+          2. Set up alerts for usage spikes
+          3. Document current optimization practices
+          4. Regular cost-benefit analysis of model selection`;
       }
     }
-    return "No specific recommendations for this resource type.";
+    
+    // Default recommendations for other resource types
+    return "No specific recommendations for this resource type. Monitor usage and costs regularly.";
   };
 
   useEffect(() => {
@@ -188,7 +217,10 @@ export default function ResourceUsage({ provider }: ResourceUsageProps) {
                         <p>Usage History and Cost Breakdown will appear here...</p>
                         <div className="flex items-center text-yellow-500 mt-2">
                           <Lightbulb className="h-5 w-5 mr-2" />
-                          <p><strong>Optimization Tip:</strong> {resource.recommendations}</p>
+                          <div>
+                            <p><strong>Optimization Tips:</strong></p>
+                            <p className="whitespace-pre-line">{resource.recommendations}</p>
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
