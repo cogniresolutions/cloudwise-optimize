@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
@@ -345,29 +345,4 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       </CardContent>
     </Card>
   );
-}
-
-function getIconForResourceType(type: string) {
-  const iconProps = { className: "h-5 w-5 text-primary" };
-  
-  switch (type.toLowerCase()) {
-    case 'virtual machines':
-      return <Server {...iconProps} />;
-    case 'sql databases':
-      return <Database {...iconProps} />;
-    case 'storage accounts':
-      return <HardDrive {...iconProps} />;
-    case 'app services':
-      return <Cloud {...iconProps} />;
-    case 'kubernetes clusters':
-      return <Cpu {...iconProps} />;
-    case 'cognitive services':
-      return <BrainCog {...iconProps} />;
-    case 'azure openai':
-      return <Bot {...iconProps} />;
-    case 'container apps':
-      return <LayoutGrid {...iconProps} />;
-    default:
-      return <Server {...iconProps} />;
-  }
 }
