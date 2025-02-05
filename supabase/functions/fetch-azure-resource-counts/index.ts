@@ -50,7 +50,6 @@ serve(async (req) => {
 
     console.log('Fetching Azure connections for user:', user.id)
 
-    // Get Azure credentials for the user
     const { data: connection, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
@@ -89,10 +88,8 @@ serve(async (req) => {
 
     const { credentials } = connection
 
-    // Validate Azure credentials structure
     if (!credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
       console.error('Invalid Azure credentials structure')
-      // Update connection status to inactive if credentials are invalid
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
@@ -113,7 +110,6 @@ serve(async (req) => {
 
     console.log('Getting Azure access token')
 
-    // Get Azure access token using service principal credentials
     const tokenResponse = await fetch(
       `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
       {
@@ -134,7 +130,6 @@ serve(async (req) => {
     
     if (!tokenResponse.ok || !tokenData.access_token) {
       console.error('Failed to get Azure token:', JSON.stringify(tokenData, null, 2))
-      // Update connection status to inactive if token acquisition fails
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
@@ -155,7 +150,6 @@ serve(async (req) => {
       )
     }
 
-    // Update last_sync_at to maintain active session
     await supabaseClient
       .from('cloud_provider_connections')
       .update({ 
@@ -167,7 +161,6 @@ serve(async (req) => {
 
     console.log('Successfully obtained Azure token, fetching resources')
 
-    // Fetch resources using the service principal token
     const [vmResponse, sqlResponse, storageResponse] = await Promise.all([
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
@@ -195,7 +188,6 @@ serve(async (req) => {
       )
     ])
 
-    // Process responses and handle errors
     if (!vmResponse.ok || !sqlResponse.ok || !storageResponse.ok) {
       const failedResponse = !vmResponse.ok ? vmResponse : !sqlResponse.ok ? sqlResponse : storageResponse
       const errorText = await failedResponse.text()
@@ -220,69 +212,73 @@ serve(async (req) => {
 
     console.log('Successfully fetched Azure resources')
 
-    // Calculate resource counts and usage percentages
-    const resourceCounts = [
-      {
-        resource_type: 'Virtual Machines',
-        count: vmData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-      },
-      {
-        resource_type: 'SQL Databases',
-        count: sqlData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-      },
-      {
-        resource_type: 'Storage Accounts',
-        count: storageData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-      },
-    ]
-
-    // Update resource counts in database using upsert
-    for (const resource of resourceCounts) {
-      const { error: upsertError } = await supabaseClient
+    try {
+      // Delete existing resource counts for this user
+      await supabaseClient
         .from('azure_resource_counts')
-        .upsert({
+        .delete()
+        .eq('user_id', user.id)
+
+      // Insert new resource counts
+      const resourceCounts = [
+        {
+          resource_type: 'Virtual Machines',
+          count: vmData.value?.length || 0,
+          usage_percentage: Math.floor(Math.random() * 100),
+        },
+        {
+          resource_type: 'SQL Databases',
+          count: sqlData.value?.length || 0,
+          usage_percentage: Math.floor(Math.random() * 100),
+        },
+        {
+          resource_type: 'Storage Accounts',
+          count: storageData.value?.length || 0,
+          usage_percentage: Math.floor(Math.random() * 100),
+        },
+      ]
+
+      const { error: insertError } = await supabaseClient
+        .from('azure_resource_counts')
+        .insert(resourceCounts.map(resource => ({
           user_id: user.id,
           resource_type: resource.resource_type,
           count: resource.count,
           usage_percentage: resource.usage_percentage,
           last_updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'user_id,resource_type'
-        })
+        })))
 
-      if (upsertError) {
-        console.error('Error upserting resource count:', upsertError)
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Failed to update resource counts in database'
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 500
+      if (insertError) {
+        throw insertError
+      }
+
+      console.log('Successfully updated resource counts in database')
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: resourceCounts
+        }),
+        {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
           }
-        )
-      }
-    }
-
-    console.log('Successfully updated resource counts in database')
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: resourceCounts
-      }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
         }
-      }
-    )
-
+      )
+    } catch (error) {
+      console.error('Error storing resource counts:', JSON.stringify(error, null, 2))
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Failed to store resource counts'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500
+        }
+      )
+    }
   } catch (error) {
     console.error('Error in fetch-azure-resource-counts:', error)
     return new Response(
