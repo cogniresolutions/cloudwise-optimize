@@ -45,14 +45,29 @@ serve(async (req) => {
       .eq('provider', 'azure')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single()
+      .order('created_at', { ascending: false });
 
-    if (connectionError || !connections) {
+    if (connectionError) {
       console.error('Error fetching Azure connections:', connectionError)
+      throw new Error('Error fetching Azure connections')
+    }
+
+    if (!connections || connections.length === 0) {
+      console.error('No active Azure connections found')
       throw new Error('No active Azure connection found')
     }
 
-    const { credentials } = connections
+    // Get the most recent active connection
+    const connection = connections[0];
+    const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
+    const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
+
+    if (lastSyncTime <= oneHourAgo) {
+      console.error('Azure connection is stale')
+      throw new Error('Azure connection is stale')
+    }
+
+    const { credentials } = connection;
     console.log('Retrieved Azure credentials for user')
 
     if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
@@ -60,7 +75,7 @@ serve(async (req) => {
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('id', connections.id)
+        .eq('id', connection.id)
 
       throw new Error('Invalid Azure credentials configuration')
     }
@@ -91,7 +106,7 @@ serve(async (req) => {
       await supabaseClient
         .from('cloud_provider_connections')
         .update({ is_active: false })
-        .eq('id', connections.id)
+        .eq('id', connection.id)
 
       throw new Error(tokenData.error === 'invalid_client' 
         ? 'Invalid Azure credentials. Please verify your Client ID and Client Secret are correct.'
