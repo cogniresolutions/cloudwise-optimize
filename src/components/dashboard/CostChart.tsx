@@ -119,11 +119,11 @@ export function CostChart() {
         <CardTitle>Cost Overview</CardTitle>
         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
           <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-primary/30 mr-1" />
+            <div className="h-3 w-3 rounded-full bg-primary mr-1" />
             Costs
           </div>
           <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-secondary/30 mr-1" />
+            <div className="h-3 w-3 rounded-full bg-secondary mr-1" />
             Potential Savings
           </div>
         </div>
@@ -132,16 +132,6 @@ export function CostChart() {
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={costData}>
-              <defs>
-                <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
@@ -149,16 +139,16 @@ export function CostChart() {
                 type="monotone"
                 dataKey="cost"
                 stroke="hsl(var(--primary))"
-                fillOpacity={1}
-                fill="url(#colorCost)"
+                fill="hsl(var(--primary))"
+                fillOpacity={0.2}
                 stackId="1"
               />
               <Area
                 type="monotone"
                 dataKey="savings"
                 stroke="hsl(var(--secondary))"
-                fillOpacity={1}
-                fill="url(#colorSavings)"
+                fill="hsl(var(--secondary))"
+                fillOpacity={0.2}
                 stackId="1"
               />
             </AreaChart>
