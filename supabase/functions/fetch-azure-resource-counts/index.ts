@@ -7,30 +7,25 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
 
   try {
     console.log('Starting fetch-azure-resource-counts function')
+    
+    // Initialize Supabase client
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Validate authentication
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('No authorization header provided')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'No authorization header provided'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 401
-        }
-      )
+      throw new Error('No authorization header provided')
     }
 
     const token = authHeader.replace('Bearer ', '')
@@ -38,20 +33,12 @@ serve(async (req) => {
     
     if (userError || !user) {
       console.error('Error getting user:', userError)
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Unauthorized'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 401
-        }
-      )
+      throw new Error('Unauthorized')
     }
 
     console.log('Fetching Azure connections for user:', user.id)
 
+    // Get Azure credentials from cloud_provider_connections
     const { data: connections, error: connectionError } = await supabaseClient
       .from('cloud_provider_connections')
       .select('*')
@@ -66,6 +53,7 @@ serve(async (req) => {
     }
 
     const { credentials } = connections
+    console.log('Retrieved Azure credentials for user')
 
     if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
       console.error('Invalid Azure credentials structure:', credentials)
@@ -79,6 +67,7 @@ serve(async (req) => {
 
     console.log('Getting Azure access token')
 
+    // Get Azure access token
     const tokenResponse = await fetch(
       `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
       {
@@ -113,68 +102,67 @@ serve(async (req) => {
     console.log('Fetching Azure resources...')
 
     // Fetch resources from various Azure services
-    const responses = await Promise.all([
+    const responses = await Promise.allSettled([
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-02-01-preview`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Web/sites?api-version=2022-03-01`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=2023-07-02-preview`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.DocumentDB/databaseAccounts?api-version=2023-09-15`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CognitiveServices/accounts?api-version=2023-05-01`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       ),
       fetch(
         `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.App/containerApps?api-version=2023-05-01`,
-        {
-          headers: { 'Authorization': `Bearer ${tokenData.access_token}` },
-        }
+        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
       )
     ])
 
-    // Process responses and prepare for upsert
-    const [vmData, sqlData, storageData, webAppsData, aksData, cosmosData, cognitiveData, containerAppsData] = await Promise.all(
-      responses.map(response => response.json())
+    // Process responses and handle errors
+    const results = await Promise.all(
+      responses.map(async (response, index) => {
+        if (response.status === 'rejected') {
+          console.error(`Error fetching resource type ${index}:`, response.reason)
+          return { value: { value: [] } }
+        }
+        
+        const result = response.value
+        if (!result.ok) {
+          console.error(`HTTP error for resource type ${index}:`, result.status)
+          return { value: { value: [] } }
+        }
+        
+        return result.json()
+      })
     )
+
+    const [vmData, sqlData, storageData, webAppsData, aksData, cosmosData, cognitiveData, containerAppsData] = results
 
     const resourceCounts = [
       {
         resource_type: 'Virtual Machines',
         count: vmData.value?.length || 0,
         usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0, // Will be updated with actual cost data
+        cost: 0,
       },
       {
         resource_type: 'SQL Databases',
@@ -220,50 +208,7 @@ serve(async (req) => {
       }
     ]
 
-    // Fetch cost data from Azure Cost Management API
-    const costResponse = await fetch(
-      `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CostManagement/query?api-version=2021-10-01`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          type: 'ActualCost',
-          timeframe: 'MonthToDate',
-          dataset: {
-            granularity: 'None',
-            aggregation: {
-              totalCost: {
-                name: 'Cost',
-                function: 'Sum',
-              },
-            },
-            grouping: [
-              {
-                type: 'Dimension',
-                name: 'ResourceType',
-              },
-            ],
-          },
-        }),
-      }
-    )
-
-    const costData = await costResponse.json();
-
-    // Update resource counts with cost data
-    resourceCounts.forEach(resource => {
-      const costInfo = costData.properties?.rows?.find(
-        (row: any[]) => row[0].includes(resource.resource_type)
-      )
-      if (costInfo) {
-        resource.cost = parseFloat(costInfo[1])
-      }
-    })
-
-    // Perform upsert operation
+    // Update resource counts in database
     const { error: upsertError } = await supabaseClient
       .from('azure_resource_counts')
       .upsert(
@@ -288,7 +233,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, data: resourceCounts }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     )
 
   } catch (error) {
