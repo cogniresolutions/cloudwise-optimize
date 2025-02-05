@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { ResourceType } from "./types";
 import { ResourceStatusIndicator } from "./ResourceStatusIndicator";
 import { ResourceTable } from "./ResourceTable";
+import { ResourceType } from "./types";
 
 interface ResourceUsageProps {
   provider: string;
@@ -17,40 +17,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isAzureConnected, setIsAzureConnected] = useState(false);
-
-  const generateOptimizationRecommendations = async (resources: ResourceType[]) => {
-    return Promise.all(resources.map(async (resource) => {
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
-          body: { 
-            resource,
-            provider,
-            usage_percentage: resource.usage_percentage,
-            cost: resource.cost
-          }
-        });
-
-        if (error) throw error;
-
-        return { 
-          ...resource, 
-          recommendations: data.recommendation,
-          potential_savings: data.potential_savings,
-          optimization_priority: data.priority,
-          action_items: data.action_items || []
-        };
-      } catch (error) {
-        console.error('Error generating recommendations:', error);
-        return { 
-          ...resource, 
-          recommendations: "Unable to generate recommendations at this time.",
-          potential_savings: 0,
-          optimization_priority: 'low',
-          action_items: []
-        };
-      }
-    }));
-  };
 
   const fetchResourceCounts = async () => {
     if (provider !== 'azure') return;
@@ -92,7 +58,40 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (error) throw error;
 
-      const resourcesWithRecommendations = await generateOptimizationRecommendations(resourceCounts);
+      // Generate recommendations for each resource
+      const resourcesWithRecommendations = await Promise.all(
+        resourceCounts.map(async (resource) => {
+          try {
+            const { data: recommendation, error: recError } = await supabase.functions.invoke(
+              'generate-cost-recommendations',
+              {
+                body: {
+                  resource,
+                  provider,
+                  usage_percentage: resource.usage_percentage,
+                  cost: resource.cost
+                }
+              }
+            );
+
+            if (recError) throw recError;
+
+            return {
+              ...resource,
+              recommendations: recommendation.recommendation,
+              details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
+            };
+          } catch (err) {
+            console.error('Error generating recommendations:', err);
+            return {
+              ...resource,
+              recommendations: "Unable to generate recommendations at this time.",
+              details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
+            };
+          }
+        })
+      );
+
       setResources(resourcesWithRecommendations);
     } catch (err) {
       setIsAzureConnected(false);
