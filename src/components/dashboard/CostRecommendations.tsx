@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, DollarSign, Zap } from "lucide-react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface CostRecommendationsProps {
   provider: string;
@@ -11,61 +15,67 @@ interface Recommendation {
   description: string;
   impact: string;
   icon: React.ElementType;
+  potential_savings?: number;
+  priority?: string;
 }
 
 export function CostRecommendations({ provider }: CostRecommendationsProps) {
-  const recommendationsData: { [key: string]: Recommendation[] } = {
-    aws: [
-      {
-        id: "1",
-        title: "Underutilized EC2 Instances",
-        description: "3 instances have less than 10% CPU utilization",
-        impact: "Potential savings: $420/month",
-        icon: DollarSign,
-      },
-      {
-        id: "2",
-        title: "Reserved Instance Opportunity",
-        description: "Convert 5 on-demand instances to reserved instances",
-        impact: "Potential savings: $850/month",
-        icon: Zap,
-      },
-    ],
-    azure: [
-      {
-        id: "1",
-        title: "Idle VMs Detected",
-        description: "2 VMs have been idle for 7+ days",
-        impact: "Potential savings: $280/month",
-        icon: AlertTriangle,
-      },
-      {
-        id: "2",
-        title: "Storage Tier Optimization",
-        description: "Move rarely accessed data to cool storage",
-        impact: "Potential savings: $150/month",
-        icon: Zap,
-      },
-    ],
-    gcp: [
-      {
-        id: "1",
-        title: "Sustained Use Discounts",
-        description: "Eligible for discounts on 4 instances",
-        impact: "Potential savings: $320/month",
-        icon: DollarSign,
-      },
-      {
-        id: "2",
-        title: "Unattached Persistent Disks",
-        description: "3 disks are not attached to any VM",
-        impact: "Potential savings: $95/month",
-        icon: AlertTriangle,
-      },
-    ],
-  };
+  const { session } = useAuth();
+  const { toast } = useToast();
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const recommendations = recommendationsData[provider] || recommendationsData.aws;
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!session?.user) return;
+
+      try {
+        const { data: costRecommendations, error } = await supabase
+          .from('cost_recommendations')
+          .select('*')
+          .eq('provider', provider.toLowerCase())
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (error) throw error;
+
+        const formattedRecommendations = costRecommendations.map((rec): Recommendation => ({
+          id: rec.id,
+          title: rec.title,
+          description: rec.description,
+          impact: rec.potential_savings ? `Potential savings: $${rec.potential_savings}/month` : 'Analyzing potential savings...',
+          icon: getIconForPriority(rec.priority),
+          potential_savings: rec.potential_savings,
+          priority: rec.priority,
+        }));
+
+        setRecommendations(formattedRecommendations);
+      } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to fetch cost recommendations",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecommendations();
+  }, [session?.user, provider, toast]);
+
+  const getIconForPriority = (priority?: string): React.ElementType => {
+    switch (priority?.toLowerCase()) {
+      case 'high':
+        return AlertTriangle;
+      case 'medium':
+        return Zap;
+      default:
+        return DollarSign;
+    }
+  };
 
   return (
     <Card className="col-span-4 animate-fade-in">
@@ -76,6 +86,12 @@ export function CostRecommendations({ provider }: CostRecommendationsProps) {
         <div className="grid gap-4">
           {recommendations.map((recommendation) => {
             const Icon = recommendation.icon;
+            const priorityColor = recommendation.priority === 'high' 
+              ? 'bg-red-100 text-red-800' 
+              : recommendation.priority === 'medium'
+              ? 'bg-yellow-100 text-yellow-800'
+              : 'bg-green-100 text-green-800';
+
             return (
               <div
                 key={recommendation.id}
@@ -85,7 +101,14 @@ export function CostRecommendations({ provider }: CostRecommendationsProps) {
                   <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <div className="flex-1 space-y-1">
-                  <p className="font-medium">{recommendation.title}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium">{recommendation.title}</p>
+                    {recommendation.priority && (
+                      <span className={`text-xs px-2 py-1 rounded ${priorityColor}`}>
+                        {recommendation.priority.toUpperCase()}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {recommendation.description}
                   </p>
@@ -96,6 +119,11 @@ export function CostRecommendations({ provider }: CostRecommendationsProps) {
               </div>
             );
           })}
+          {recommendations.length === 0 && !isLoading && (
+            <div className="text-center py-4 text-muted-foreground">
+              No recommendations available at this time.
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
