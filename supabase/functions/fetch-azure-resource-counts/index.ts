@@ -18,7 +18,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Get the authorization header
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('No authorization header provided')
@@ -34,7 +33,6 @@ serve(async (req) => {
       )
     }
 
-    // Extract the JWT token
     const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
     
@@ -61,15 +59,14 @@ serve(async (req) => {
         .eq('provider', 'azure')
         .eq('user_id', user.id)
         .eq('is_active', true)
-        .maybeSingle()
 
       if (connectionError) {
-        console.error('Error fetching Azure connection:', connectionError)
+        console.error('Error fetching Azure connections:', connectionError)
         throw connectionError
       }
 
-      if (!connections) {
-        console.error('No active Azure connection found')
+      if (!connections || connections.length === 0) {
+        console.error('No active Azure connections found')
         return new Response(
           JSON.stringify({
             success: false,
@@ -82,16 +79,21 @@ serve(async (req) => {
         )
       }
 
-      console.log('Found Azure connection:', connections)
+      // Use the most recently updated connection
+      const activeConnection = connections.sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      )[0]
 
-      const { credentials } = connections
+      console.log('Found Azure connection:', activeConnection)
+
+      const { credentials } = activeConnection
 
       if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
         console.error('Invalid Azure credentials structure:', credentials)
         await supabaseClient
           .from('cloud_provider_connections')
           .update({ is_active: false })
-          .eq('id', connections.id)
+          .eq('id', activeConnection.id)
 
         return new Response(
           JSON.stringify({
@@ -131,7 +133,7 @@ serve(async (req) => {
           await supabaseClient
             .from('cloud_provider_connections')
             .update({ is_active: false })
-            .eq('id', connections.id)
+            .eq('id', activeConnection.id)
 
           return new Response(
             JSON.stringify({
@@ -155,7 +157,7 @@ serve(async (req) => {
             last_sync_at: new Date().toISOString(),
             is_active: true 
           })
-          .eq('id', connections.id)
+          .eq('id', activeConnection.id)
 
         try {
           console.log('Fetching Azure resources...')
