@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
@@ -194,10 +194,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                         <p>Usage History and Cost Breakdown will appear here...</p>
                         <div className="flex items-center text-yellow-500 mt-2">
                           <Lightbulb className="h-5 w-5 mr-2" />
-                          <div>
-                            <p><strong>Optimization Tips:</strong></p>
-                            <p className="whitespace-pre-line">{resource.recommendations}</p>
-                          </div>
+                          <p><strong>Optimization Tip:</strong> {resource.recommendations}</p>
                         </div>
                       </TableCell>
                     </TableRow>
