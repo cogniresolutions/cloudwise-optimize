@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  Server, Database, HardDrive, Cloud, Cpu,
+  BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
+  CheckCircle, CloudOff, ChevronDown, ChevronUp, Lightbulb
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { ResourceStatusIndicator } from "./ResourceStatusIndicator";
-import { ResourceTable } from "./ResourceTable";
-import { ResourceType } from "./types";
+
+interface ResourceType {
+  resource_type: string;
+  count: number;
+  usage_percentage: number;
+  cost: number | null;
+  details?: string;
+  recommendations?: string;
+}
 
 interface ResourceUsageProps {
   provider: string;
@@ -17,6 +29,38 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isAzureConnected, setIsAzureConnected] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<string[]>([]);
+
+  const toggleRow = (resourceType: string) => {
+    setExpandedRows((prev) =>
+      prev.includes(resourceType) ? prev.filter((r) => r !== resourceType) : [...prev, resourceType]
+    );
+  };
+
+  const generateOptimizationRecommendations = async (resources: ResourceType[]) => {
+    return await Promise.all(resources.map(async (resource) => {
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
+          body: { resource }
+        });
+
+        if (error) throw error;
+
+        return {
+          ...resource,
+          recommendations: data.recommendation,
+          details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
+        };
+      } catch (error) {
+        console.error('Error generating recommendations:', error);
+        return {
+          ...resource,
+          recommendations: "Unable to generate recommendations at this time.",
+          details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
+        };
+      }
+    }));
+  };
 
   const fetchResourceCounts = async () => {
     if (provider !== 'azure') return;
@@ -58,40 +102,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (error) throw error;
 
-      // Generate recommendations for each resource
-      const resourcesWithRecommendations = await Promise.all(
-        resourceCounts.map(async (resource) => {
-          try {
-            const { data: recommendation, error: recError } = await supabase.functions.invoke(
-              'generate-cost-recommendations',
-              {
-                body: {
-                  resource,
-                  provider,
-                  usage_percentage: resource.usage_percentage,
-                  cost: resource.cost
-                }
-              }
-            );
-
-            if (recError) throw recError;
-
-            return {
-              ...resource,
-              recommendations: recommendation.recommendation,
-              details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
-            };
-          } catch (err) {
-            console.error('Error generating recommendations:', err);
-            return {
-              ...resource,
-              recommendations: "Unable to generate recommendations at this time.",
-              details: `Resource Type: ${resource.resource_type}\nCount: ${resource.count}\nUsage: ${resource.usage_percentage}%\nCost: $${resource.cost}`
-            };
-          }
-        })
-      );
-
+      const resourcesWithRecommendations = await generateOptimizationRecommendations(resourceCounts);
       setResources(resourcesWithRecommendations);
     } catch (err) {
       setIsAzureConnected(false);
@@ -114,23 +125,103 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     fetchResourceCounts();
   }, [session?.user, provider]);
 
+  // ... keep existing code (return statement with Card, Table, etc.)
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{provider.toUpperCase()} Resource Usage</CardTitle>
-          <ResourceStatusIndicator isLoading={isLoading} isConnected={isAzureConnected} />
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : isAzureConnected ? (
+            <span className="text-green-500 flex items-center">
+              <CheckCircle className="h-4 w-4 mr-1" /> Connected
+            </span>
+          ) : (
+            <span className="text-red-500 flex items-center">
+              <CloudOff className="h-4 w-4 mr-1" /> Not Connected
+            </span>
+          )}
         </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
           <div className="flex justify-center p-4">
-            <ResourceStatusIndicator isLoading={true} isConnected={false} />
+            <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : (
-          <ResourceTable resources={resources} />
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Resource Type</TableHead>
+                <TableHead>Count</TableHead>
+                <TableHead>Usage %</TableHead>
+                <TableHead>Cost (USD)</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {resources.map((resource) => (
+                <>
+                  <TableRow key={resource.resource_type}>
+                    <TableCell className="font-medium flex items-center">
+                      {getIconForResourceType(resource.resource_type)}
+                      <span className="ml-2">{resource.resource_type}</span>
+                    </TableCell>
+                    <TableCell>{resource.count}</TableCell>
+                    <TableCell>{resource.usage_percentage}%</TableCell>
+                    <TableCell>
+                      {resource.cost !== null ? (
+                        <div className="flex items-center text-green-600">
+                          <DollarSign className="h-4 w-4 mr-1" /> {resource.cost.toFixed(2)}
+                        </div>
+                      ) : (
+                        "N/A"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <button onClick={() => toggleRow(resource.resource_type)}>
+                        {expandedRows.includes(resource.resource_type) ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                  {expandedRows.includes(resource.resource_type) && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="bg-gray-50 p-4">
+                        <p><strong>Resource Details:</strong></p>
+                        <pre className="bg-white p-2 rounded-md border border-gray-200">{resource.details}</pre>
+                        <div className="flex items-center text-yellow-500 mt-2">
+                          <Lightbulb className="h-5 w-5 mr-2" />
+                          <p><strong>Optimization Tip:</strong> {resource.recommendations}</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </CardContent>
     </Card>
   );
+}
+
+function getIconForResourceType(type: string) {
+  switch (type.toLowerCase()) {
+    case 'virtual machines': return <Server className="h-5 w-5 text-primary" />;
+    case 'sql databases': return <Database className="h-5 w-5 text-primary" />;
+    case 'storage accounts': return <HardDrive className="h-5 w-5 text-primary" />;
+    case 'app services': return <Cloud className="h-5 w-5 text-primary" />;
+    case 'kubernetes clusters': return <Cpu className="h-5 w-5 text-primary" />;
+    case 'cognitive services': return <BrainCog className="h-5 w-5 text-primary" />;
+    case 'azure openai': return <Bot className="h-5 w-5 text-primary" />;
+    case 'container apps': return <LayoutGrid className="h-5 w-5 text-primary" />;
+    default: return <Server className="h-5 w-5 text-primary" />;
+  }
 }

@@ -24,17 +24,20 @@ serve(async (req) => {
 
     const client = new OpenAIClient(endpoint, new AzureKeyCredential(apiKey))
 
-    const prompt = `Provide cost optimization recommendations for Azure OpenAI with the following details:
-      - Usage Percentage: ${resource.usage_percentage}%
-      - Monthly Cost: ${resource.cost} USD
-      
-      Focus on:
-      1. Cost efficiency
-      2. Resource optimization
-      3. Specific actionable steps
-      4. Potential savings estimates
-      
-      Keep the response concise and practical.`
+    const prompt = `You are an Azure cost optimization assistant. Analyze the following Azure resource details and provide accurate, actionable cost-saving recommendations:
+
+    Resource Type: ${resource.resource_type}
+    Count: ${resource.count}
+    Usage Percentage: ${resource.usage_percentage}%
+    Monthly Cost: ${resource.cost} USD
+
+    Focus on:
+    1. Cost efficiency
+    2. Resource optimization
+    3. Specific actionable steps
+    4. Potential savings estimates
+    
+    Keep the response concise and practical.`
 
     const response = await client.getCompletions('gpt-35-turbo', [{ text: prompt }], {
       maxTokens: 150,
