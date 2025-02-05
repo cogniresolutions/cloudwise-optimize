@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, ChevronUp, DollarSign, Server } from "lucide-react";
+import { ChevronDown, ChevronUp, DollarSign, Server, Database, HardDrive, Cloud, Cpu, BrainCog, Bot, LayoutGrid } from "lucide-react";
 import { ResourceType } from "./types";
 import { ResourceDetails } from "./ResourceDetails";
 
