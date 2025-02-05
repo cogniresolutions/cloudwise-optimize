@@ -11,6 +11,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@azure/arm-compute": "^22.3.0",
+    "@azure/arm-consumption": "^9.2.0",
+    "@azure/arm-sql": "^10.0.0",
+    "@azure/arm-storage": "^18.3.0",
+    "@azure/identity": "^4.6.0",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",

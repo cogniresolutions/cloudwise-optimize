@@ -9,6 +9,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
+import { ClientSecretCredential } from "@azure/identity";
+import { ComputeManagementClient } from "@azure/arm-compute";
+import { StorageManagementClient } from "@azure/arm-storage";
+import { SqlManagementClient } from "@azure/arm-sql";
+import { ConsumptionManagementClient } from "@azure/arm-consumption";
 
 interface ResourceType {
   resource_type: string;
@@ -37,13 +42,15 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         .eq('provider', provider)
         .eq('user_id', session?.user.id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .single();
 
-      if (connectionError || !connections || connections.length === 0) {
+      if (connectionError || !connections) {
         setIsConnected(false);
-      } else {
-        setIsConnected(true);
+        return null;
       }
+
+      setIsConnected(true);
+      return connections.credentials;
     } catch (err) {
       setIsConnected(false);
       toast({
@@ -51,78 +58,95 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         title: "Error",
         description: err instanceof Error ? err.message : `Failed to check ${provider} connection status`,
       });
+      return null;
     }
   };
 
-  const fetchResourceCounts = async () => {
+  const fetchAzureResources = async () => {
     setIsLoading(true);
     try {
-      await checkConnectionStatus();
-
-      if (!isConnected) return;
-
-      let data;
-      let error;
-
-      // Type-safe way to handle different resource tables
-      if (provider.toLowerCase() === 'azure') {
-        const result = await supabase
-          .from('azure_resource_counts')
-          .select('*')
-          .eq('user_id', session?.user.id)
-          .order('last_updated_at', { ascending: false });
-          
-        data = result.data;
-        error = result.error;
-      } else if (provider.toLowerCase() === 'aws') {
-        const result = await supabase
-          .from('azure_resource_counts') // Using azure table for demo, update when AWS table is ready
-          .select('*')
-          .eq('user_id', session?.user.id)
-          .order('last_updated_at', { ascending: false });
-          
-        data = result.data;
-        error = result.error;
-      } else if (provider.toLowerCase() === 'gcp') {
-        const result = await supabase
-          .from('azure_resource_counts') // Using azure table for demo, update when GCP table is ready
-          .select('*')
-          .eq('user_id', session?.user.id)
-          .order('last_updated_at', { ascending: false });
-          
-        data = result.data;
-        error = result.error;
+      const credentials = await checkConnectionStatus();
+      if (!credentials) {
+        throw new Error("No valid Azure credentials found");
       }
 
-      if (error) {
-        throw error;
-      }
+      const credential = new ClientSecretCredential(
+        credentials.tenantId,
+        credentials.clientId,
+        credentials.clientSecret
+      );
 
-      if (data) {
-        // Explicitly map the data to match ResourceType
-        const typedResources: ResourceType[] = data.map(item => ({
-          resource_type: item.resource_type,
-          count: item.count,
-          usage_percentage: item.usage_percentage || 0,
-          cost: item.cost
-        }));
-        
-        setResources(typedResources);
-      }
-    } catch (err) {
+      const subscriptionId = credentials.subscriptionId;
+
+      // Initialize clients
+      const computeClient = new ComputeManagementClient(credential, subscriptionId);
+      const storageClient = new StorageManagementClient(credential, subscriptionId);
+      const sqlClient = new SqlManagementClient(credential, subscriptionId);
+      const consumptionClient = new ConsumptionManagementClient(credential, subscriptionId);
+
+      // Fetch resources
+      const [vms, storageAccounts, sqlServers, usageDetails] = await Promise.all([
+        computeClient.virtualMachines.listAll(),
+        storageClient.storageAccounts.list(),
+        sqlClient.servers.list(),
+        consumptionClient.usageDetails.list()
+      ]);
+
+      const getResourceCost = (resourceType: string) => {
+        const usage = Array.from(usageDetails).find(
+          (item) => item.instanceName?.toLowerCase().includes(resourceType.toLowerCase())
+        );
+        return usage?.pretaxCost ? parseFloat(usage.pretaxCost) : 0;
+      };
+
+      const newResources: ResourceType[] = [
+        {
+          resource_type: "Virtual Machines",
+          count: Array.from(vms).length,
+          usage_percentage: 70, // This should be calculated based on actual metrics
+          cost: getResourceCost("virtualMachines"),
+        },
+        {
+          resource_type: "Storage Accounts",
+          count: Array.from(storageAccounts).length,
+          usage_percentage: 50,
+          cost: getResourceCost("storageAccounts"),
+        },
+        {
+          resource_type: "SQL Databases",
+          count: Array.from(sqlServers).length,
+          usage_percentage: 40,
+          cost: getResourceCost("sqlDatabases"),
+        },
+      ];
+
+      // Save to Supabase for caching
+      await supabase.from('azure_resource_counts').upsert(
+        newResources.map(resource => ({
+          user_id: session?.user.id,
+          ...resource,
+          last_updated_at: new Date().toISOString()
+        }))
+      );
+
+      setResources(newResources);
+      setIsConnected(true);
+    } catch (error) {
+      console.error("Error fetching Azure resources:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: err instanceof Error ? err.message : `Failed to fetch ${provider} resource counts`,
+        description: error instanceof Error ? error.message : "Failed to fetch Azure resources",
       });
+      setIsConnected(false);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (session?.user) {
-      fetchResourceCounts();
+    if (session?.user && provider === 'azure') {
+      fetchAzureResources();
     }
   }, [session?.user, provider]);
 
