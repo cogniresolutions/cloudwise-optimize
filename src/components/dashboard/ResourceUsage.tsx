@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
-  LayoutGrid, Bot, BrainCog, Loader2, DollarSign 
+  LayoutGrid, Bot, BrainCog, Loader2, DollarSign,
+  LogOut, CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -24,6 +25,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
+  const [isAzureConnected, setIsAzureConnected] = useState(false);
 
   const getIconForResourceType = (type: string) => {
     switch (type.toLowerCase()) {
@@ -86,13 +88,16 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         }
         
         setResources(newData.data);
+        setIsAzureConnected(true);
         console.log('Successfully updated resources from Azure');
       } else {
         console.log('Using cached data from Supabase');
         setResources(resourceCounts);
+        setIsAzureConnected(true);
       }
     } catch (err) {
       console.error('Error in fetchResourceCounts:', err);
+      setIsAzureConnected(false);
       toast({
         variant: "destructive",
         title: "Error",
@@ -134,6 +139,15 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       supabase.removeChannel(channel);
     };
   }, [session?.user, provider]);
+
+  const disconnectAzure = () => {
+    setIsAzureConnected(false);
+    setResources([]);
+    toast({ 
+      title: "Azure Disconnected", 
+      description: "Successfully disconnected from Azure." 
+    });
+  };
 
   if (provider !== 'azure') {
     // Return mock data for other providers
@@ -199,7 +213,28 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Azure Resource Usage</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <CardTitle>Azure Resource Usage</CardTitle>
+            {isAzureConnected ? (
+              <span className="ml-4 text-green-500 flex items-center">
+                <CheckCircle className="w-4 h-4 mr-1" /> Connected
+              </span>
+            ) : (
+              <span className="ml-4 text-red-500 flex items-center">
+                <CloudOff className="w-4 h-4 mr-1" /> Not Connected
+              </span>
+            )}
+          </div>
+          {isAzureConnected && (
+            <button 
+              onClick={disconnectAzure} 
+              className="flex items-center text-red-500 hover:text-red-600 transition-colors"
+            >
+              <LogOut className="w-4 h-4 mr-1" /> Disconnect
+            </button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
