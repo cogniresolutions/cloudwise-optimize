@@ -115,57 +115,64 @@ export function CostChart() {
 
   return (
     <Card className="col-span-4 animate-fade-in">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Cost Overview</CardTitle>
-        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardTitle className="text-xl font-semibold">Cost Overview</CardTitle>
+        <div className="flex items-center space-x-6 text-sm text-muted-foreground">
           <div className="flex items-center">
-            <div className="h-2.5 w-2.5 rounded-full bg-[#0EA5E9] mr-2" />
-            Costs
+            <div className="h-3 w-3 rounded-full bg-[#0EA5E9] mr-2" />
+            <span className="font-medium">Costs</span>
           </div>
           <div className="flex items-center">
-            <div className="h-2.5 w-2.5 rounded-full bg-[#22C55E] mr-2" />
-            Potential Savings
+            <div className="h-3 w-3 rounded-full bg-[#22C55E] mr-2" />
+            <span className="font-medium">Potential Savings</span>
           </div>
         </div>
       </CardHeader>
       <CardContent className="pl-2">
-        <div className="h-[300px]">
+        <div className="h-[350px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={costData}
-              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
               barGap={0}
-              barCategoryGap="20%"
+              barCategoryGap="25%"
             >
               <XAxis 
                 dataKey="month" 
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                dy={10}
               />
               <YAxis 
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                dx={-10}
               />
               <Tooltip 
+                cursor={{ fill: 'hsl(var(--muted))' }}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--background))',
                   border: '1px solid hsl(var(--border))',
-                  borderRadius: '6px'
+                  borderRadius: '8px',
+                  padding: '12px'
                 }}
+                labelStyle={{ color: 'hsl(var(--foreground))' }}
               />
               <Bar
                 dataKey="cost"
                 fill="#0EA5E9"
                 radius={[4, 4, 0, 0]}
                 stackId="stack"
+                maxBarSize={50}
               />
               <Bar
                 dataKey="savings"
                 fill="#22C55E"
                 radius={[4, 4, 0, 0]}
                 stackId="stack"
+                maxBarSize={50}
               />
             </BarChart>
           </ResponsiveContainer>
