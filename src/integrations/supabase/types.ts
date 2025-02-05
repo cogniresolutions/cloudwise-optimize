@@ -150,6 +150,7 @@ export type Database = {
       }
       azure_resource_counts: {
         Row: {
+          cost: number | null
           count: number
           id: string
           last_updated_at: string | null
@@ -158,6 +159,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          cost?: number | null
           count: number
           id?: string
           last_updated_at?: string | null
@@ -166,6 +168,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          cost?: number | null
           count?: number
           id?: string
           last_updated_at?: string | null
