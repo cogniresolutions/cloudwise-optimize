@@ -39,18 +39,18 @@ export function ResourceTable({ resources }: ResourceTableProps) {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[300px]">Resource Type</TableHead>
-            <TableHead className="w-[100px] text-center">Count</TableHead>
-            <TableHead className="w-[120px] text-center">Usage %</TableHead>
-            <TableHead className="w-[150px] text-center">Cost (USD)</TableHead>
-            <TableHead className="w-[80px] text-center">Details</TableHead>
+            <TableHead className="w-[400px] px-6">Resource Type</TableHead>
+            <TableHead className="w-[150px] text-center">Count</TableHead>
+            <TableHead className="w-[200px] text-center">Usage %</TableHead>
+            <TableHead className="w-[200px] text-center">Cost (USD)</TableHead>
+            <TableHead className="w-[100px] text-center">Details</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {resources.map((resource) => (
             <React.Fragment key={resource.resource_type}>
               <TableRow className="hover:bg-muted/50 transition-colors">
-                <TableCell className="font-medium">
+                <TableCell className="font-medium px-6">
                   <div className="flex items-center space-x-3">
                     {getIconForResourceType(resource.resource_type)}
                     <span className="text-sm font-medium">{resource.resource_type}</span>
@@ -60,11 +60,11 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                   {resource.count}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center justify-center">
-                    <div className="w-full max-w-[100px] bg-secondary rounded-full h-2.5">
+                  <div className="flex items-center justify-center px-6">
+                    <div className="w-full max-w-[150px] bg-secondary/30 rounded-full h-2.5">
                       <div
                         className={cn(
-                          "h-2.5 rounded-full",
+                          "h-2.5 rounded-full transition-all duration-500",
                           resource.usage_percentage > 80 ? "bg-red-500" :
                           resource.usage_percentage > 60 ? "bg-yellow-500" :
                           "bg-green-500"
@@ -72,7 +72,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                         style={{ width: `${resource.usage_percentage}%` }}
                       />
                     </div>
-                    <span className="ml-2 text-sm font-medium">{resource.usage_percentage}%</span>
+                    <span className="ml-3 text-sm font-medium">{resource.usage_percentage}%</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
@@ -101,10 +101,10 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               {expandedRows.includes(resource.resource_type) && (
                 <TableRow>
                   <TableCell colSpan={5} className="p-0">
-                    <div className="bg-muted/50 p-6 space-y-6 animate-accordion-down">
+                    <div className="bg-muted/50 p-8 space-y-6 animate-accordion-down">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-sm">Resource Details:</h4>
-                        <pre className="bg-background p-4 rounded-lg border text-sm overflow-x-auto whitespace-pre-wrap">
+                        <pre className="bg-background p-6 rounded-lg border text-sm overflow-x-auto whitespace-pre-wrap">
                           {resource.details}
                         </pre>
                       </div>
