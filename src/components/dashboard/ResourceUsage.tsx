@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
-  LayoutGrid, Bot, BrainCog, Loader2, DollarSign,
+  BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
   LogOut, CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -34,6 +34,28 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     try {
       console.log('Fetching Azure resource counts for user:', session?.user.id);
       
+      // First check if we have an active Azure connection
+      const { data: connections, error: connectionError } = await supabase
+        .from('cloud_provider_connections')
+        .select('*')
+        .eq('provider', 'azure')
+        .eq('user_id', session?.user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (connectionError || !connections) {
+        console.log('No active Azure connection found');
+        setIsAzureConnected(false);
+        return;
+      }
+
+      // Check if credentials exist and are valid
+      if (!connections.credentials || !connections.credentials.clientId) {
+        console.log('Invalid Azure credentials');
+        setIsAzureConnected(false);
+        return;
+      }
+
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
         .select('*')
@@ -85,12 +107,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     }
   };
 
-  useEffect(() => {
-    if (session?.user && provider === 'azure') {
-      fetchResourceCounts();
-    }
-  }, [session?.user, provider]);
-
   // Set up real-time subscription for resource count updates
   useEffect(() => {
     if (!session?.user || provider !== 'azure') return;
@@ -117,14 +133,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     };
   }, [session?.user, provider]);
 
-  const disconnectAzure = () => {
-    setIsAzureConnected(false);
-    setResources([]);
-    toast({ 
-      title: "Azure Disconnected", 
-      description: "Successfully disconnected from Azure." 
-    });
-  };
+  // Initial fetch of resource counts
+  useEffect(() => {
+    if (session?.user && provider === 'azure') {
+      fetchResourceCounts();
+    }
+  }, [session?.user, provider]);
 
   if (provider !== 'azure') {
     // Return mock data for other providers
@@ -191,26 +205,22 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <CardTitle>Azure Resource Usage</CardTitle>
-            {isAzureConnected ? (
-              <span className="ml-4 text-green-500 flex items-center">
-                <CheckCircle className="w-4 h-4 mr-1" /> Connected
+          <div className="flex items-center space-x-2">
+            <CardTitle>
+              {provider.toUpperCase()} Resource Usage
+            </CardTitle>
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin ml-2" />
+            ) : isAzureConnected ? (
+              <span className="ml-2 text-green-500 flex items-center">
+                <CheckCircle className="h-4 w-4 mr-1" /> Connected
               </span>
             ) : (
-              <span className="ml-4 text-red-500 flex items-center">
-                <CloudOff className="w-4 h-4 mr-1" /> Not Connected
+              <span className="ml-2 text-red-500 flex items-center">
+                <CloudOff className="h-4 w-4 mr-1" /> Not Connected
               </span>
             )}
           </div>
-          {isAzureConnected && (
-            <button 
-              onClick={disconnectAzure} 
-              className="flex items-center text-red-500 hover:text-red-600 transition-colors"
-            >
-              <LogOut className="w-4 h-4 mr-1" /> Disconnect
-            </button>
-          )}
         </div>
       </CardHeader>
       <CardContent>
