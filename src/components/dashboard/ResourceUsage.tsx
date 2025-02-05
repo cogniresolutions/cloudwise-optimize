@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Database, HardDrive, Loader2, AppWindow, Cloud, BrainCog, Bot, LayoutGrid } from "lucide-react";
+import { 
+  Server, Database, HardDrive, Loader2, Cloud, 
+  LayoutGrid, Bot, BrainCog, AppWindow 
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ResourceType {
-  name: string;
+  resource_type: string;
   count: number;
-  usage: number;
-  icon: React.ElementType;
+  usage_percentage: number;
 }
 
 interface ResourceUsageProps {
@@ -83,32 +85,18 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           throw new Error('Invalid response from server');
         }
         
-        const mappedResources = data.data.map((resource: any) => ({
-          name: resource.resource_type,
-          count: resource.count,
-          usage: resource.usage_percentage,
-          icon: getIconForResourceType(resource.resource_type),
-        }));
-        
-        setResources(mappedResources);
+        setResources(data.data);
         console.log('Successfully updated resources from Azure');
       } else {
         console.log('Using cached data from Supabase');
-        const mappedResources = resourceCounts.map((resource) => ({
-          name: resource.resource_type,
-          count: resource.count,
-          usage: resource.usage_percentage,
-          icon: getIconForResourceType(resource.resource_type),
-        }));
-        
-        setResources(mappedResources);
+        setResources(resourceCounts);
       }
-    } catch (error) {
-      console.error('Error in fetchResourceCounts:', error);
+    } catch (err) {
+      console.error('Error in fetchResourceCounts:', err);
       toast({
         variant: "destructive",
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to fetch resource counts",
+        description: err instanceof Error ? err.message : "Failed to fetch resource counts",
       });
     } finally {
       setIsLoading(false);
@@ -151,16 +139,17 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     // Return mock data for other providers
     const mockData = {
       aws: [
-        { name: "EC2 Instances", count: 45, usage: 65, icon: Server },
-        { name: "RDS Databases", count: 12, usage: 78, icon: Database },
-        { name: "EBS Volumes", count: 89, usage: 45, icon: HardDrive },
+        { resource_type: "EC2 Instances", count: 45, usage_percentage: 65 },
+        { resource_type: "RDS Databases", count: 12, usage_percentage: 78 },
+        { resource_type: "EBS Volumes", count: 89, usage_percentage: 45 },
       ],
       gcp: [
-        { name: "Compute Instances", count: 29, usage: 58, icon: Server },
-        { name: "Cloud SQL", count: 6, usage: 81, icon: Database },
-        { name: "Persistent Disks", count: 42, usage: 48, icon: HardDrive },
+        { resource_type: "Compute Instances", count: 29, usage_percentage: 58 },
+        { resource_type: "Cloud SQL", count: 6, usage_percentage: 81 },
+        { resource_type: "Persistent Disks", count: 42, usage_percentage: 48 },
       ],
     };
+
     return (
       <Card className="col-span-4 animate-fade-in">
         <CardHeader>
@@ -169,15 +158,15 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         <CardContent>
           <div className="grid gap-6">
             {mockData[provider as keyof typeof mockData].map((resource) => {
-              const Icon = resource.icon;
+              const Icon = getIconForResourceType(resource.resource_type);
               return (
-                <div key={resource.name} className="flex items-center justify-between">
+                <div key={resource.resource_type} className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="p-2 bg-primary/10 rounded-full">
                       <Icon className="h-5 w-5 text-primary" />
                     </div>
                     <div>
-                      <p className="font-medium">{resource.name}</p>
+                      <p className="font-medium">{resource.resource_type}</p>
                       <p className="text-sm text-muted-foreground">
                         {resource.count} resources
                       </p>
@@ -187,10 +176,10 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                     <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full"
-                        style={{ width: `${resource.usage}%` }}
+                        style={{ width: `${resource.usage_percentage}%` }}
                       />
                     </div>
-                    <span className="text-sm font-medium">{resource.usage}%</span>
+                    <span className="text-sm font-medium">{resource.usage_percentage}%</span>
                   </div>
                 </div>
               );
@@ -210,15 +199,15 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       <CardContent>
         <div className="grid gap-6">
           {resources.map((resource) => {
-            const Icon = resource.icon;
+            const Icon = getIconForResourceType(resource.resource_type);
             return (
-              <div key={resource.name} className="flex items-center justify-between">
+              <div key={resource.resource_type} className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
                   <div className="p-2 bg-primary/10 rounded-full">
                     <Icon className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium">{resource.name}</p>
+                    <p className="font-medium">{resource.resource_type}</p>
                     <p className="text-sm text-muted-foreground">
                       {resource.count} resources
                     </p>
@@ -228,10 +217,10 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                   <div className="w-32 h-2 bg-primary/20 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-primary rounded-full"
-                      style={{ width: `${resource.usage}%` }}
+                      style={{ width: `${resource.usage_percentage}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium">{resource.usage}%</span>
+                  <span className="text-sm font-medium">{resource.usage_percentage}%</span>
                 </div>
               </div>
             );
