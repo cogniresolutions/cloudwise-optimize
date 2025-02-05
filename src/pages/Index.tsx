@@ -1,48 +1,119 @@
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { CloudProviderSelector } from "@/components/dashboard/CloudProviderSelector";
+import { CloudConnectionSheet } from "@/components/dashboard/CloudConnectionSheet";
+import { CostCard } from "@/components/dashboard/CostCard";
+import { CostChart } from "@/components/dashboard/CostChart";
+import { CostRecommendations } from "@/components/dashboard/CostRecommendations";
+import { ResourceUsage } from "@/components/dashboard/ResourceUsage";
+import { Plus } from "lucide-react";
+import { useState } from "react";
 
-export default function Index() {
-  const navigate = useNavigate();
-  const { toast } = useToast();
+const Index = () => {
+  const [selectedProvider, setSelectedProvider] = useState("aws");
+  const [showConnectionSheet, setShowConnectionSheet] = useState(false);
 
-  const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account.",
-      });
-      
-      navigate("/auth");
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    }
+  const providerData = {
+    aws: {
+      totalCost: "$24,685",
+      totalTrend: 12,
+      projectedCost: "$32,000",
+      projectedTrend: 8,
+      potentialSavings: "$3,240",
+      savingsTrend: -15,
+      activeResources: "234",
+      resourcesTrend: 5,
+    },
+    azure: {
+      totalCost: "$18,450",
+      totalTrend: 5,
+      projectedCost: "$22,000",
+      projectedTrend: 3,
+      potentialSavings: "$2,800",
+      savingsTrend: -12,
+      activeResources: "186",
+      resourcesTrend: 2,
+    },
+    gcp: {
+      totalCost: "$15,720",
+      totalTrend: 7,
+      projectedCost: "$19,500",
+      projectedTrend: 6,
+      potentialSavings: "$1,950",
+      savingsTrend: -8,
+      activeResources: "142",
+      resourcesTrend: 4,
+    },
   };
 
+  const currentData = providerData[selectedProvider as keyof typeof providerData];
+
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-end mb-8">
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
+    <div className="min-h-screen bg-background p-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Cloud Cost Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Monitor and optimize your multi-cloud spending
+            </p>
+          </div>
+          <Button onClick={() => setShowConnectionSheet(true)}>
+            <Plus className="mr-2 h-4 w-4" /> View Cloud Connections
           </Button>
         </div>
-        <h1 className="text-4xl font-bold text-foreground">Welcome to the Dashboard</h1>
+
+        {/* Cloud Provider Selector */}
+        <CloudProviderSelector
+          selectedProvider={selectedProvider}
+          onSelect={setSelectedProvider}
+        />
+
+        {/* Cloud Connection Sheet */}
+        <CloudConnectionSheet
+          isOpen={showConnectionSheet}
+          onOpenChange={setShowConnectionSheet}
+        />
+
+        {/* Cost Overview Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <CostCard
+            title="Total Cost (MTD)"
+            amount={currentData.totalCost}
+            trend={currentData.totalTrend}
+            trendLabel="from last month"
+          />
+          <CostCard
+            title="Projected Cost"
+            amount={currentData.projectedCost}
+            trend={currentData.projectedTrend}
+            trendLabel="vs budget"
+          />
+          <CostCard
+            title="Potential Savings"
+            amount={currentData.potentialSavings}
+            trend={currentData.savingsTrend}
+            trendLabel="if optimized"
+          />
+          <CostCard
+            title="Active Resources"
+            amount={currentData.activeResources}
+            trend={currentData.resourcesTrend}
+            trendLabel="new this month"
+          />
+        </div>
+
+        {/* Charts and Resource Usage */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <CostChart />
+          <ResourceUsage provider={selectedProvider} />
+        </div>
+
+        {/* Cost Recommendations */}
+        <CostRecommendations provider={selectedProvider} />
       </div>
     </div>
   );
-}
+};
+
+export default Index;

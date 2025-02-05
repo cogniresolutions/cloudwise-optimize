@@ -82,11 +82,9 @@ export default function Auth() {
     }
   };
 
-  console.log("Auth component rendering"); // Adding a console log to verify component rendering
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background text-foreground p-4">
-      <Card className="w-full max-w-md animate-fade-in">
+    <div className="container flex items-center justify-center min-h-screen py-10">
+      <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
           <CardDescription>
