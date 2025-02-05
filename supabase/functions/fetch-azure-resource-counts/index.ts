@@ -346,17 +346,23 @@ serve(async (req) => {
         }
       ]
 
-      // Update database
+      // Update database using upsert
       const { error: updateError } = await supabaseClient
         .from('azure_resource_counts')
-        .upsert(resourceCounts.map(resource => ({
-          user_id: user.id,
-          resource_type: resource.resource_type,
-          count: resource.count,
-          usage_percentage: resource.usage_percentage,
-          cost: resource.cost,
-          last_updated_at: new Date().toISOString(),
-        })));
+        .upsert(
+          resourceCounts.map(resource => ({
+            user_id: user.id,
+            resource_type: resource.resource_type,
+            count: resource.count,
+            usage_percentage: resource.usage_percentage,
+            cost: resource.cost,
+            last_updated_at: new Date().toISOString(),
+          })),
+          {
+            onConflict: ['user_id', 'resource_type'],
+            ignoreDuplicates: false
+          }
+        );
 
       if (updateError) throw updateError;
 
@@ -373,8 +379,11 @@ serve(async (req) => {
           error: error.message || 'An unexpected error occurred',
         }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json'
+          },
+          status: error.message.includes('Unauthorized') ? 401 : 500
         }
       )
     }
