@@ -76,7 +76,8 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
       const { data, error } = await supabase
         .from('cloud_provider_connections')
         .select('provider, is_active, last_sync_at, credentials')
-        .eq('user_id', session.user.id);
+        .eq('user_id', session.user.id)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching cloud connections:', error);
@@ -85,9 +86,17 @@ export function CloudConnectionSheet({ isOpen, onOpenChange }: CloudConnectionSh
 
       const newStatus = { aws: false, azure: false, gcp: false };
       
-      data?.forEach((connection) => {
+      // Group by provider and take the most recent connection for each
+      const latestConnections = data?.reduce((acc: any, connection) => {
+        if (!acc[connection.provider] || 
+            new Date(connection.last_sync_at) > new Date(acc[connection.provider].last_sync_at)) {
+          acc[connection.provider] = connection;
+        }
+        return acc;
+      }, {});
+      
+      Object.values(latestConnections || {}).forEach((connection: any) => {
         if (connection.provider in newStatus) {
-          // Check if the connection is active, has valid credentials, and was synced recently
           const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
           const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
           

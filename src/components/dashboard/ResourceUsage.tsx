@@ -60,11 +60,10 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         .eq('provider', 'azure')
         .eq('user_id', session?.user.id)
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false });
 
       if (connectionError) {
-        console.error('Error fetching Azure connection:', connectionError);
+        console.error('Error fetching Azure connections:', connectionError);
         setIsAzureConnected(false);
         localStorage.removeItem('azureConnected');
         return;
@@ -81,7 +80,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
       const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
 
-      // Check if the connection is still valid (synced within the last hour)
       if (lastSyncTime <= oneHourAgo) {
         console.log('Azure connection is stale');
         setIsAzureConnected(false);
@@ -170,7 +168,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     }
   }, [session?.user, provider]);
 
-  // Set up real-time subscription for resource count updates
   useEffect(() => {
     if (!session?.user || provider !== 'azure') return;
 
