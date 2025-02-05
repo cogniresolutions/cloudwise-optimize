@@ -4,7 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  CheckCircle, CloudOff, ChevronDown, ChevronUp, Lightbulb
+  CheckCircle, CloudOff, ChevronDown, ChevronUp, Lightbulb,
+  TrendingDown, AlertCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -16,6 +17,9 @@ interface ResourceType {
   usage_percentage: number;
   cost: number | null;
   recommendations?: string;
+  potential_savings?: number;
+  optimization_priority?: 'high' | 'medium' | 'low';
+  action_items?: string[];
 }
 
 interface ResourceUsageProps {
@@ -38,26 +42,35 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
   const generateOptimizationRecommendations = async (resources: ResourceType[]) => {
     return Promise.all(resources.map(async (resource) => {
-      if (resource.resource_type.toLowerCase() === 'azure openai') {
-        try {
-          const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
-            body: { resource }
-          });
+      try {
+        const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
+          body: { 
+            resource,
+            provider,
+            usage_percentage: resource.usage_percentage,
+            cost: resource.cost
+          }
+        });
 
-          if (error) throw error;
-          return { ...resource, recommendations: data.recommendation };
-        } catch (error) {
-          console.error('Error generating recommendations:', error);
-          return { 
-            ...resource, 
-            recommendations: "Unable to generate recommendations at this time." 
-          };
-        }
+        if (error) throw error;
+
+        return { 
+          ...resource, 
+          recommendations: data.recommendation,
+          potential_savings: data.potential_savings,
+          optimization_priority: data.priority,
+          action_items: data.action_items || []
+        };
+      } catch (error) {
+        console.error('Error generating recommendations:', error);
+        return { 
+          ...resource, 
+          recommendations: "Unable to generate recommendations at this time.",
+          potential_savings: 0,
+          optimization_priority: 'low',
+          action_items: []
+        };
       }
-      return { 
-        ...resource, 
-        recommendations: "No specific recommendations available for this resource type." 
-      };
     }));
   };
 
@@ -123,6 +136,15 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     }
     fetchResourceCounts();
   }, [session?.user, provider]);
+
+  const getPriorityColor = (priority?: 'high' | 'medium' | 'low') => {
+    switch (priority) {
+      case 'high': return 'text-red-500';
+      case 'medium': return 'text-yellow-500';
+      case 'low': return 'text-green-500';
+      default: return 'text-gray-500';
+    }
+  };
 
   return (
     <Card>
@@ -190,11 +212,43 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                   {expandedRows.includes(resource.resource_type) && (
                     <TableRow>
                       <TableCell colSpan={5} className="bg-gray-50 p-4">
-                        <p><strong>Resource Details:</strong></p>
-                        <p>Usage History and Cost Breakdown will appear here...</p>
-                        <div className="flex items-center text-yellow-500 mt-2">
-                          <Lightbulb className="h-5 w-5 mr-2" />
-                          <p><strong>Optimization Tip:</strong> {resource.recommendations}</p>
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold text-lg">Resource Optimization Details</h4>
+                            <span className={`flex items-center ${getPriorityColor(resource.optimization_priority)}`}>
+                              <AlertCircle className="h-4 w-4 mr-1" />
+                              Priority: {resource.optimization_priority || 'N/A'}
+                            </span>
+                          </div>
+                          
+                          <div className="bg-white p-4 rounded-lg shadow-sm">
+                            <div className="flex items-center text-yellow-500 mb-3">
+                              <Lightbulb className="h-5 w-5 mr-2" />
+                              <p className="font-semibold">Optimization Recommendations</p>
+                            </div>
+                            <p className="text-gray-700 mb-4">{resource.recommendations}</p>
+                            
+                            {resource.potential_savings && resource.potential_savings > 0 && (
+                              <div className="flex items-center text-green-600 mb-3">
+                                <TrendingDown className="h-5 w-5 mr-2" />
+                                <p>
+                                  <span className="font-semibold">Potential Monthly Savings: </span>
+                                  ${resource.potential_savings.toFixed(2)}
+                                </p>
+                              </div>
+                            )}
+                            
+                            {resource.action_items && resource.action_items.length > 0 && (
+                              <div className="mt-4">
+                                <p className="font-semibold mb-2">Recommended Actions:</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                  {resource.action_items.map((action, index) => (
+                                    <li key={index} className="text-gray-700">{action}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                     </TableRow>
