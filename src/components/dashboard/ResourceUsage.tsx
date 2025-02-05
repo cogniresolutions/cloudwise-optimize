@@ -161,7 +161,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     };
   }, [session?.user, provider]);
 
-  // Initial fetch of resource counts
+  // Initial fetch of resource counts and connection status
   useEffect(() => {
     if (session?.user && provider === 'azure') {
       fetchResourceCounts();
