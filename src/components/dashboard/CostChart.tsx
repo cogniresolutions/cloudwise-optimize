@@ -39,7 +39,7 @@ export function CostChart() {
       if (recentError) throw recentError;
 
       // Process historical data
-      const processedHistorical = historicalData.reduce((acc: Record<string, CostData>, entry) => {
+      const processedHistorical = (historicalData || []).reduce((acc: Record<string, CostData>, entry) => {
         const month = new Date(entry.cost_date).toLocaleString('default', { month: 'short' });
         if (!acc[month]) {
           acc[month] = {
@@ -48,13 +48,13 @@ export function CostChart() {
             savings: 0
           };
         }
-        acc[month].cost += Number(entry.total_cost);
-        acc[month].savings += Number(entry.potential_savings);
+        acc[month].cost += Number(entry.total_cost || 0);
+        acc[month].savings += Number(entry.potential_savings || 0);
         return acc;
       }, {});
 
       // Process recent data
-      const processedRecent = recentData.reduce((acc: Record<string, CostData>, resource) => {
+      const processedRecent = (recentData || []).reduce((acc: Record<string, CostData>, resource) => {
         if (resource.cost_data && typeof resource.cost_data === 'object') {
           const month = new Date(resource.last_updated_at).toLocaleString('default', { month: 'short' });
           if (!acc[month]) {

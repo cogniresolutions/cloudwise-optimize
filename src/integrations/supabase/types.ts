@@ -456,6 +456,47 @@ export type Database = {
           },
         ]
       }
+      historical_cost_data: {
+        Row: {
+          cost_date: string
+          created_at: string
+          id: string
+          potential_savings: number
+          provider: string
+          resource_breakdown: Json | null
+          total_cost: number
+          user_id: string | null
+        }
+        Insert: {
+          cost_date: string
+          created_at?: string
+          id?: string
+          potential_savings?: number
+          provider: string
+          resource_breakdown?: Json | null
+          total_cost?: number
+          user_id?: string | null
+        }
+        Update: {
+          cost_date?: string
+          created_at?: string
+          id?: string
+          potential_savings?: number
+          provider?: string
+          resource_breakdown?: Json | null
+          total_cost?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_cost_data_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mood_aggregations: {
         Row: {
           average_mood: number | null
