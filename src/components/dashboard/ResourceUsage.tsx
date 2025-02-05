@@ -9,7 +9,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import type { ResourceType } from "./types";
+
+interface ResourceType {
+  resource_type: string;
+  count: number;
+  usage_percentage: number;
+  cost: number | null;
+}
 
 interface ResourceUsageProps {
   provider: string;
@@ -20,11 +26,10 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { session } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const fetchResourceCounts = async () => {
-    setIsLoading(true);
+  const checkConnectionStatus = async () => {
     try {
       const { data: connections, error: connectionError } = await supabase
         .from('cloud_provider_connections')
@@ -36,38 +41,53 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (connectionError || !connections || connections.length === 0) {
         setIsConnected(false);
-        return;
-      }
-
-      setIsConnected(true);
-
-      // Handle different resource count tables based on provider
-      let resourceData;
-      if (provider.toLowerCase() === 'azure') {
-        const { data, error } = await supabase
-          .from('azure_resource_counts')
-          .select('*')
-          .eq('user_id', session?.user.id)
-          .order('last_updated_at', { ascending: false });
-          
-        if (error) throw error;
-        resourceData = data;
       } else {
-        // For other providers, return empty array for now
-        resourceData = [];
+        setIsConnected(true);
       }
-
-      // Map the data to match ResourceType interface
-      const formattedResources: ResourceType[] = resourceData.map(item => ({
-        resource_type: item.resource_type,
-        count: item.count,
-        usage_percentage: item.usage_percentage,
-        cost: item.cost,
-      }));
-
-      setResources(formattedResources);
     } catch (err) {
       setIsConnected(false);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : `Failed to check ${provider} connection status`,
+      });
+    }
+  };
+
+  const fetchResourceCounts = async () => {
+    setIsLoading(true);
+    try {
+      await checkConnectionStatus();
+
+      if (!isConnected) return;
+
+      let tableName = '';
+      switch (provider.toLowerCase()) {
+        case 'azure':
+          tableName = 'azure_resource_counts';
+          break;
+        case 'aws':
+          tableName = 'aws_resource_counts';
+          break;
+        case 'gcp':
+          tableName = 'gcp_resource_counts';
+          break;
+        default:
+          throw new Error('Unsupported provider');
+      }
+
+      const { data: resourceCounts, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('user_id', session?.user.id)
+        .order('last_updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setResources(resourceCounts || []);
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Error",
