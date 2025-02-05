@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Server, Database, HardDrive, Loader2, Cloud, 
-  LayoutGrid, Bot, BrainCog, AppWindow 
+  LayoutGrid, Bot, BrainCog, AppWindow, DollarSign 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -12,6 +12,7 @@ interface ResourceType {
   resource_type: string;
   count: number;
   usage_percentage: number;
+  cost?: number;
 }
 
 interface ResourceUsageProps {
@@ -211,6 +212,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                     <p className="text-sm text-muted-foreground">
                       {resource.count} resources
                     </p>
+                    {resource.cost !== undefined && (
+                      <p className="flex items-center text-sm text-green-600">
+                        <DollarSign className="h-3 w-3 mr-1" />
+                        {resource.cost.toFixed(2)} USD
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
