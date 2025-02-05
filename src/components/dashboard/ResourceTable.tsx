@@ -39,8 +39,8 @@ export function ResourceTable({ resources }: ResourceTableProps) {
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[35%] px-6">Resource Type</TableHead>
-            <TableHead className="w-[20%] text-center">Count</TableHead>
+            <TableHead className="w-[40%] px-6">Resource Type</TableHead>
+            <TableHead className="w-[15%] text-center">Count</TableHead>
             <TableHead className="w-[25%] text-center">Usage %</TableHead>
             <TableHead className="w-[15%] text-center">Cost (USD)</TableHead>
             <TableHead className="w-[5%] text-center">Details</TableHead>
@@ -60,7 +60,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                   {resource.count}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center justify-center px-6">
+                  <div className="flex items-center justify-center px-4">
                     <div className="w-full bg-secondary/30 rounded-full h-2.5">
                       <div
                         className={cn(
@@ -101,15 +101,15 @@ export function ResourceTable({ resources }: ResourceTableProps) {
               {expandedRows.includes(resource.resource_type) && (
                 <TableRow>
                   <TableCell colSpan={5} className="p-0">
-                    <div className="bg-muted/50 p-8 space-y-6 animate-accordion-down">
+                    <div className="bg-muted/50 p-6 space-y-4 animate-accordion-down">
                       <div className="space-y-4">
                         <h4 className="font-semibold text-sm">Resource Details:</h4>
-                        <pre className="bg-background p-6 rounded-lg border text-sm overflow-x-auto whitespace-pre-wrap">
+                        <pre className="bg-background p-4 rounded-lg border text-sm overflow-x-auto whitespace-pre-wrap">
                           {resource.details}
                         </pre>
                       </div>
                       
-                      <div className="bg-background rounded-lg border p-6">
+                      <div className="bg-background rounded-lg border p-4">
                         <div className="flex items-center text-yellow-500 mb-4">
                           <Lightbulb className="h-5 w-5 mr-2" />
                           <h4 className="font-semibold text-sm">Optimization Recommendations</h4>
@@ -141,8 +141,8 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                         </div>
                         
                         {resource.action_items && resource.action_items.length > 0 && (
-                          <div className="mt-6">
-                            <h5 className="text-sm font-medium mb-3">Recommended Actions:</h5>
+                          <div className="mt-4">
+                            <h5 className="text-sm font-medium mb-2">Recommended Actions:</h5>
                             <ul className="space-y-2">
                               {resource.action_items.map((action, index) => (
                                 <li key={index} className="flex items-start space-x-2 text-sm text-muted-foreground">

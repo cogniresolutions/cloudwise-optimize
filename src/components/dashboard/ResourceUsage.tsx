@@ -109,7 +109,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   }, [session?.user, provider]);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>{provider.toUpperCase()} Resource Usage</CardTitle>
