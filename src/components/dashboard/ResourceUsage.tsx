@@ -9,15 +9,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-
-interface ResourceType {
-  resource_type: string;
-  count: number;
-  usage_percentage: number;
-  cost: number | null;
-  details?: string;
-  recommendations?: string;
-}
+import { ResourceType } from "./types";
 
 interface ResourceUsageProps {
   provider: string;
