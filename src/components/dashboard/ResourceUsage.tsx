@@ -4,18 +4,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  CheckCircle, CloudOff, ChevronDown, ChevronUp
+  CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-
-interface ResourceType {
-  resource_type: string;
-  count: number;
-  usage_percentage: number;
-  cost: number | null;
-}
+import type { ResourceType } from "./types";
 
 interface ResourceUsageProps {
   provider: string;
@@ -46,17 +40,31 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       setIsConnected(true);
 
-      const { data: resourceCounts, error } = await supabase
-        .from(`${provider.toLowerCase()}_resource_counts`)
-        .select('*')
-        .eq('user_id', session?.user.id)
-        .order('last_updated_at', { ascending: false });
-
-      if (error) {
-        throw error;
+      // Handle different resource count tables based on provider
+      let resourceData;
+      if (provider.toLowerCase() === 'azure') {
+        const { data, error } = await supabase
+          .from('azure_resource_counts')
+          .select('*')
+          .eq('user_id', session?.user.id)
+          .order('last_updated_at', { ascending: false });
+          
+        if (error) throw error;
+        resourceData = data;
+      } else {
+        // For other providers, return empty array for now
+        resourceData = [];
       }
 
-      setResources(resourceCounts);
+      // Map the data to match ResourceType interface
+      const formattedResources: ResourceType[] = resourceData.map(item => ({
+        resource_type: item.resource_type,
+        count: item.count,
+        usage_percentage: item.usage_percentage,
+        cost: item.cost,
+      }));
+
+      setResources(formattedResources);
     } catch (err) {
       setIsConnected(false);
       toast({
@@ -70,7 +78,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   };
 
   useEffect(() => {
-    fetchResourceCounts();
+    if (session?.user) {
+      fetchResourceCounts();
+    }
   }, [session?.user, provider]);
 
   return (
