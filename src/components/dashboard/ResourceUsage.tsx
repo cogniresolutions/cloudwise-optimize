@@ -32,6 +32,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const generateOptimizationRecommendations = async (resources: ResourceType[]) => {
     return await Promise.all(resources.map(async (resource) => {
       try {
+        console.log('Generating recommendations for resource:', resource);
         const { data, error } = await supabase.functions.invoke('generate-cost-recommendations', {
           body: { resource }
         });
