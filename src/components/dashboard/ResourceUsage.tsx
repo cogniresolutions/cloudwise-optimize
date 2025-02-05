@@ -22,15 +22,15 @@ interface ResourceType {
   cost: number | null;
 }
 
-interface ResourceUsageProps {
-  provider: string;
-}
-
 interface AzureCredentials {
   tenantId: string;
   clientId: string;
   clientSecret: string;
   subscriptionId: string;
+}
+
+interface ResourceUsageProps {
+  provider: string;
 }
 
 export function ResourceUsage({ provider }: ResourceUsageProps) {
@@ -40,39 +40,26 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
-  const checkConnectionStatus = async () => {
+  const fetchAzureResources = async () => {
+    if (!session?.user?.id) return;
+
+    setIsLoading(true);
     try {
-      const { data: connections, error } = await supabase
+      // Fetch Azure credentials from Supabase
+      const { data: connectionData, error: connectionError } = await supabase
         .from('cloud_provider_connections')
-        .select('*')
-        .eq('provider', provider)
-        .eq('user_id', session?.user.id)
+        .select('credentials')
+        .eq('user_id', session.user.id)
+        .eq('provider', 'azure')
         .eq('is_active', true)
         .single();
 
-      if (error || !connections) {
-        setIsConnected(false);
-        return null;
-      }
-
-      const credentials = connections.credentials as AzureCredentials;
-      setIsConnected(true);
-      return credentials;
-    } catch (err) {
-      console.error("Error checking connection status:", err);
-      setIsConnected(false);
-      return null;
-    }
-  };
-
-  const fetchAzureResources = async () => {
-    setIsLoading(true);
-    try {
-      const credentials = await checkConnectionStatus();
-      if (!credentials) {
+      if (connectionError || !connectionData?.credentials) {
         throw new Error("No valid Azure credentials found");
       }
 
+      const credentials = connectionData.credentials as AzureCredentials;
+      
       const credential = new ClientSecretCredential(
         credentials.tenantId,
         credentials.clientId,
@@ -87,37 +74,29 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       const sqlClient = new SqlManagementClient(credential, subscriptionId);
       const consumptionClient = new ConsumptionManagementClient(credential, subscriptionId);
 
-      // Fetch resources
-      const [vms, storageAccounts, sqlServers, usageDetails] = await Promise.all([
-        computeClient.virtualMachines.listAll().then(async iterator => {
-          const items = [];
-          for await (const item of iterator) {
-            items.push(item);
-          }
-          return items;
-        }),
-        storageClient.storageAccounts.list().then(async iterator => {
-          const items = [];
-          for await (const item of iterator) {
-            items.push(item);
-          }
-          return items;
-        }),
-        sqlClient.servers.list().then(async iterator => {
-          const items = [];
-          for await (const item of iterator) {
-            items.push(item);
-          }
-          return items;
-        }),
-        consumptionClient.usageDetails.list().then(async iterator => {
-          const items = [];
-          for await (const item of iterator) {
-            items.push(item);
-          }
-          return items;
-        })
-      ]);
+      // Fetch resources using async iterators
+      const vms = [];
+      for await (const vm of computeClient.virtualMachines.listAll()) {
+        vms.push(vm);
+      }
+
+      const storageAccounts = [];
+      for await (const account of storageClient.storageAccounts.list()) {
+        storageAccounts.push(account);
+      }
+
+      const sqlServers = [];
+      for await (const server of sqlClient.servers.list()) {
+        sqlServers.push(server);
+      }
+
+      const usageDetails = [];
+      for await (const usage of consumptionClient.usageDetails.list({
+        expand: 'properties',
+        metric: 'ActualCost'
+      })) {
+        usageDetails.push(usage);
+      }
 
       const getResourceCost = (resourceType: string) => {
         const usage = usageDetails.find(
