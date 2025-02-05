@@ -35,15 +35,15 @@ export function ResourceTable({ resources }: ResourceTableProps) {
   };
 
   return (
-    <div className="w-full rounded-lg border bg-card">
+    <div className="w-full rounded-lg border bg-card shadow-sm">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead className="w-[500px] px-6">Resource Type</TableHead>
-            <TableHead className="w-[200px] text-center">Count</TableHead>
-            <TableHead className="w-[300px] text-center">Usage %</TableHead>
-            <TableHead className="w-[300px] text-center">Cost (USD)</TableHead>
-            <TableHead className="w-[100px] text-center">Details</TableHead>
+            <TableHead className="w-[35%] px-6">Resource Type</TableHead>
+            <TableHead className="w-[20%] text-center">Count</TableHead>
+            <TableHead className="w-[25%] text-center">Usage %</TableHead>
+            <TableHead className="w-[15%] text-center">Cost (USD)</TableHead>
+            <TableHead className="w-[5%] text-center">Details</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -61,7 +61,7 @@ export function ResourceTable({ resources }: ResourceTableProps) {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center px-6">
-                    <div className="w-full max-w-[200px] bg-secondary/30 rounded-full h-2.5">
+                    <div className="w-full bg-secondary/30 rounded-full h-2.5">
                       <div
                         className={cn(
                           "h-2.5 rounded-full transition-all duration-500",
