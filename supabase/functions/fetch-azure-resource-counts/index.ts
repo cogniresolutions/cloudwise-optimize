@@ -161,17 +161,7 @@ serve(async (req) => {
 
         try {
           console.log('Fetching Azure resources...')
-          const [
-            vmResponse,
-            sqlResponse,
-            storageResponse,
-            webAppsResponse,
-            aksResponse,
-            cosmosResponse,
-            cognitiveResponse,
-            openaiResponse,
-            containerAppsResponse
-          ] = await Promise.all([
+          const responses = await Promise.all([
             fetch(
               `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
               {
@@ -246,7 +236,28 @@ serve(async (req) => {
             )
           ]);
 
-          // Check responses and parse data
+          // Check if any response failed
+          for (let i = 0; i < responses.length; i++) {
+            if (!responses[i].ok) {
+              const errorText = await responses[i].text();
+              console.error(`Error in request ${i}:`, errorText);
+              throw new Error(`Failed to fetch Azure resources: ${responses[i].statusText}`);
+            }
+          }
+
+          // Parse all responses
+          const [
+            vmResponse,
+            sqlResponse,
+            storageResponse,
+            webAppsResponse,
+            aksResponse,
+            cosmosResponse,
+            cognitiveResponse,
+            openaiResponse,
+            containerAppsResponse
+          ] = responses;
+
           const [
             vmData,
             sqlData,
@@ -266,7 +277,7 @@ serve(async (req) => {
             cosmosResponse.json(),
             cognitiveResponse.json(),
             openaiResponse.json(),
-            containerAppsData.json()
+            containerAppsResponse.json()
           ]);
 
           console.log('Successfully fetched Azure resources')
@@ -317,7 +328,8 @@ serve(async (req) => {
               },
               {
                 resource_type: 'Azure OpenAI',
-                count: openaiData.value?.length || 0,
+                count: openaiData.value?.filter((service: any) => 
+                  service.kind?.toLowerCase().includes('openai'))?.length || 0,
                 usage_percentage: Math.floor(Math.random() * 100),
               },
               {
