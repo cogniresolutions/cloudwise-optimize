@@ -4,7 +4,7 @@ import { CloudConnectionSheet } from "@/components/dashboard/CloudConnectionShee
 import { CostCard } from "@/components/dashboard/CostCard";
 import { CostChart } from "@/components/dashboard/CostChart";
 import { CostRecommendations } from "@/components/dashboard/CostRecommendations";
-import { ResourceUsage } from "@/components/dashboard/ResourceUsage";
+import ResourceUsage from "@/components/dashboard/ResourceUsage";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 
