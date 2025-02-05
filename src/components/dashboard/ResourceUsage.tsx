@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
-  Server, Database, HardDrive, Loader2, Cloud, 
-  LayoutGrid, Bot, BrainCog, AppWindow, DollarSign 
+  Server, Database, HardDrive, Cloud, Cpu,
+  LayoutGrid, Bot, BrainCog, Loader2, DollarSign 
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -31,15 +31,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return Server;
       case 'sql databases':
       case 'sql servers':
-      case 'databases':
       case 'cosmos db':
         return Database;
       case 'storage accounts':
         return HardDrive;
       case 'app services':
-        return AppWindow;
-      case 'kubernetes clusters':
         return Cloud;
+      case 'kubernetes clusters':
+        return Cpu;
       case 'cognitive services':
         return BrainCog;
       case 'azure openai':
@@ -74,19 +73,19 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (isStale) {
         console.log('Data is stale, fetching from Azure...');
-        const { data, error: functionError } = await supabase.functions.invoke('fetch-azure-resource-counts');
+        const { data: newData, error: functionError } = await supabase.functions.invoke('fetch-azure-resource-counts');
         
         if (functionError) {
           console.error('Error invoking function:', functionError);
           throw functionError;
         }
 
-        if (!data?.data) {
-          console.error('Invalid response from function:', data);
+        if (!newData?.data) {
+          console.error('Invalid response from function:', newData);
           throw new Error('Invalid response from server');
         }
         
-        setResources(data.data);
+        setResources(newData.data);
         console.log('Successfully updated resources from Azure');
       } else {
         console.log('Using cached data from Supabase');
@@ -152,7 +151,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     };
 
     return (
-      <Card className="col-span-4 animate-fade-in">
+      <Card>
         <CardHeader>
           <CardTitle>Resource Usage</CardTitle>
         </CardHeader>
@@ -198,9 +197,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   }
 
   return (
-    <Card className="col-span-4 animate-fade-in">
+    <Card>
       <CardHeader>
-        <CardTitle>Resource Usage</CardTitle>
+        <CardTitle>Azure Resource Usage</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading ? (
