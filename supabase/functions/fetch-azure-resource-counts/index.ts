@@ -185,18 +185,13 @@ serve(async (req) => {
             )
           ])
 
-          if (!vmResponse.ok || !sqlResponse.ok || !storageResponse.ok) {
-            const failedResponse = !vmResponse.ok ? vmResponse : !sqlResponse.ok ? sqlResponse : storageResponse
-            const errorText = await failedResponse.text()
-            console.error('Failed to fetch resources:', errorText)
-            throw new Error(`Failed to fetch Azure resources: ${failedResponse.status} ${failedResponse.statusText}`)
-          }
-
-          const [vmData, sqlData, storageData] = await Promise.all([
-            vmResponse.json(),
-            sqlResponse.json(),
-            storageResponse.json()
+          const responses = await Promise.all([
+            vmResponse.json().catch(e => ({ value: [] })),
+            sqlResponse.json().catch(e => ({ value: [] })),
+            storageResponse.json().catch(e => ({ value: [] }))
           ])
+
+          const [vmData, sqlData, storageData] = responses
 
           console.log('Successfully fetched Azure resources')
 
