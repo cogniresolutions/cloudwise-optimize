@@ -27,6 +27,18 @@ interface AzureCredentials {
   subscriptionId: string;
 }
 
+// Type guard to check if an object is AzureCredentials
+function isAzureCredentials(obj: any): obj is AzureCredentials {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof obj.clientId === 'string' &&
+    typeof obj.clientSecret === 'string' &&
+    typeof obj.tenantId === 'string' &&
+    typeof obj.subscriptionId === 'string'
+  );
+}
+
 export function ResourceUsage({ provider }: ResourceUsageProps) {
   const { toast } = useToast();
   const { session } = useAuth();
@@ -64,10 +76,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return;
       }
 
-      // Type check and validate credentials
-      const credentials = connection.credentials as AzureCredentials;
-      if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-        console.log('Invalid Azure credentials');
+      // Type check and validate credentials using type guard
+      if (!isAzureCredentials(connection.credentials)) {
+        console.error('Invalid Azure credentials structure:', connection.credentials);
         setIsAzureConnected(false);
         return;
       }
