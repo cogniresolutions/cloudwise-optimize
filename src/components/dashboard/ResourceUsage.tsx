@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server, Database, HardDrive, Loader2, AppWindow, Cloud, Database as CosmosIcon } from "lucide-react";
+import { Server, Database, HardDrive, Loader2, AppWindow, Cloud, BrainCog, Bot, LayoutGrid } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +29,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       case 'sql databases':
       case 'sql servers':
       case 'databases':
+      case 'cosmos db':
         return Database;
       case 'storage accounts':
         return HardDrive;
@@ -36,8 +37,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return AppWindow;
       case 'kubernetes clusters':
         return Cloud;
-      case 'cosmos db':
-        return CosmosIcon;
+      case 'cognitive services':
+        return BrainCog;
+      case 'azure openai':
+        return Bot;
+      case 'container apps':
+        return LayoutGrid;
       default:
         return Server;
     }
@@ -50,7 +55,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     try {
       console.log('Fetching Azure resource counts...');
       
-      // First try to fetch from Supabase
       const { data: resourceCounts, error } = await supabase
         .from('azure_resource_counts')
         .select('*')
@@ -62,7 +66,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         throw error;
       }
 
-      // If data is stale (older than 5 minutes) or doesn't exist, fetch new data
       const isStale = !resourceCounts?.length || 
         new Date().getTime() - new Date(resourceCounts[0].last_updated_at).getTime() > 5 * 60 * 1000;
 
@@ -80,7 +83,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
           throw new Error('Invalid response from server');
         }
         
-        // Map the response to our resource format
         const mappedResources = data.data.map((resource: any) => ({
           name: resource.resource_type,
           count: resource.count,
@@ -92,7 +94,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         console.log('Successfully updated resources from Azure');
       } else {
         console.log('Using cached data from Supabase');
-        // Map the Supabase data to our resource format
         const mappedResources = resourceCounts.map((resource) => ({
           name: resource.resource_type,
           count: resource.count,

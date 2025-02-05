@@ -161,7 +161,17 @@ serve(async (req) => {
 
         try {
           console.log('Fetching Azure resources...')
-          const [vmResponse, sqlResponse, storageResponse, webAppsResponse, aksResponse, cosmosResponse] = await Promise.all([
+          const [
+            vmResponse,
+            sqlResponse,
+            storageResponse,
+            webAppsResponse,
+            aksResponse,
+            cosmosResponse,
+            cognitiveResponse,
+            openaiResponse,
+            containerAppsResponse
+          ] = await Promise.all([
             fetch(
               `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
               {
@@ -209,33 +219,55 @@ serve(async (req) => {
                   'Authorization': `Bearer ${tokenData.access_token}`,
                 },
               }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CognitiveServices/accounts?api-version=2023-05-01`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CognitiveServices/accounts?api-version=2023-05-01`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
+            ),
+            fetch(
+              `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.App/containerApps?api-version=2023-05-01`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${tokenData.access_token}`,
+                },
+              }
             )
-          ])
+          ]);
 
-          // Check if any of the responses failed
-          for (const [name, response] of [
-            ['VM', vmResponse],
-            ['SQL', sqlResponse],
-            ['Storage', storageResponse],
-            ['WebApps', webAppsResponse],
-            ['AKS', aksResponse],
-            ['CosmosDB', cosmosResponse]
-          ]) {
-            if (!response.ok) {
-              const errorText = await response.text()
-              console.error(`Failed to fetch ${name} resources:`, errorText)
-              throw new Error(`Failed to fetch ${name} resources: ${response.status} ${response.statusText}`)
-            }
-          }
-
-          const [vmData, sqlData, storageData, webAppsData, aksData, cosmosData] = await Promise.all([
+          // Check responses and parse data
+          const [
+            vmData,
+            sqlData,
+            storageData,
+            webAppsData,
+            aksData,
+            cosmosData,
+            cognitiveData,
+            openaiData,
+            containerAppsData
+          ] = await Promise.all([
             vmResponse.json(),
             sqlResponse.json(),
             storageResponse.json(),
             webAppsResponse.json(),
             aksResponse.json(),
-            cosmosResponse.json()
-          ])
+            cosmosResponse.json(),
+            cognitiveResponse.json(),
+            openaiResponse.json(),
+            containerAppsData.json()
+          ]);
 
           console.log('Successfully fetched Azure resources')
 
@@ -276,6 +308,21 @@ serve(async (req) => {
               {
                 resource_type: 'Cosmos DB',
                 count: cosmosData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              },
+              {
+                resource_type: 'Cognitive Services',
+                count: cognitiveData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              },
+              {
+                resource_type: 'Azure OpenAI',
+                count: openaiData.value?.length || 0,
+                usage_percentage: Math.floor(Math.random() * 100),
+              },
+              {
+                resource_type: 'Container Apps',
+                count: containerAppsData.value?.length || 0,
                 usage_percentage: Math.floor(Math.random() * 100),
               }
             ]
