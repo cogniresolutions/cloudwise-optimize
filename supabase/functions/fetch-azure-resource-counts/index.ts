@@ -212,10 +212,15 @@ serve(async (req) => {
 
     try {
       // Delete existing resource counts for this user
-      await supabaseClient
+      const { error: deleteError } = await supabaseClient
         .from('azure_resource_counts')
         .delete()
         .eq('user_id', user.id)
+
+      if (deleteError) {
+        console.error('Error deleting existing resource counts:', deleteError)
+        throw deleteError
+      }
 
       // Insert new resource counts
       const resourceCounts = [
@@ -236,21 +241,19 @@ serve(async (req) => {
         },
       ]
 
-      for (const resource of resourceCounts) {
-        const { error: upsertError } = await supabaseClient
-          .from('azure_resource_counts')
-          .upsert({
-            user_id: user.id,
-            resource_type: resource.resource_type,
-            count: resource.count,
-            usage_percentage: resource.usage_percentage,
-            last_updated_at: new Date().toISOString(),
-          })
+      const { error: insertError } = await supabaseClient
+        .from('azure_resource_counts')
+        .insert(resourceCounts.map(resource => ({
+          user_id: user.id,
+          resource_type: resource.resource_type,
+          count: resource.count,
+          usage_percentage: resource.usage_percentage,
+          last_updated_at: new Date().toISOString(),
+        })))
 
-        if (upsertError) {
-          console.error('Error upserting resource count:', upsertError)
-          throw upsertError
-        }
+      if (insertError) {
+        console.error('Error inserting resource counts:', insertError)
+        throw insertError
       }
 
       console.log('Successfully updated resource counts in database')
