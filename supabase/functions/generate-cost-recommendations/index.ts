@@ -38,14 +38,17 @@ serve(async (req) => {
     
     Provide clear, actionable steps.`
 
-    const response = await client.getCompletions('gpt-4o-mini', [{ text: prompt }], {
+    const response = await client.getChatCompletions('gpt-4o-mini', [
+      { role: "system", content: "You are an Azure cost optimization assistant." },
+      { role: "user", content: prompt }
+    ], {
       maxTokens: 200,
       temperature: 0.7,
     })
 
     return new Response(
       JSON.stringify({
-        recommendation: response.choices[0].text.trim(),
+        recommendation: response.choices[0].message?.content || "No recommendation available",
       }),
       { 
         headers: { 
