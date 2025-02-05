@@ -172,6 +172,29 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
     };
   }, [session?.user, provider]);
 
+  const getIconForResourceType = (type: string) => {
+    switch (type.toLowerCase()) {
+      case 'virtual machines':
+        return Server;
+      case 'sql databases':
+        return Database;
+      case 'storage accounts':
+        return HardDrive;
+      case 'app services':
+        return Cloud;
+      case 'kubernetes clusters':
+        return Cpu;
+      case 'cognitive services':
+        return BrainCog;
+      case 'azure openai':
+        return Bot;
+      case 'container apps':
+        return LayoutGrid;
+      default:
+        return Server;
+    }
+  };
+
   if (provider !== 'azure') {
     const mockData = {
       aws: [
@@ -194,12 +217,12 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         <CardContent>
           <div className="space-y-4">
             {mockData[provider as keyof typeof mockData].map((resource) => {
-              const Icon = getIconForResourceType(resource.resource_type);
+              const IconComponent = getIconForResourceType(resource.resource_type);
               return (
                 <div key={resource.resource_type} className="flex items-center justify-between">
                   <div className="flex items-center space-x-4">
                     <div className="p-2 bg-primary/10 rounded-full">
-                      <Icon className="h-5 w-5 text-primary" />
+                      <IconComponent className="h-5 w-5 text-primary" />
                     </div>
                     <div>
                       <p className="font-medium">{resource.resource_type}</p>
@@ -272,7 +295,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
                   <TableRow key={resource.resource_type}>
                     <TableCell className="font-medium flex items-center">
                       <div className="p-2 bg-primary/10 rounded-full">
-                        {getIconForResourceType(resource.resource_type)}
+                        {React.createElement(getIconForResourceType(resource.resource_type), {
+                          className: "h-5 w-5 text-primary"
+                        })}
                       </div>
                       <span className="ml-2">{resource.resource_type}</span>
                     </TableCell>
