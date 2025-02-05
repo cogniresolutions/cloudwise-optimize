@@ -117,13 +117,13 @@ export function CostChart() {
     <Card className="col-span-4 animate-fade-in">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Cost Overview</CardTitle>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
           <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-primary mr-1" />
+            <div className="h-2.5 w-2.5 rounded-full bg-[#0EA5E9] mr-2" />
             Costs
           </div>
           <div className="flex items-center">
-            <div className="h-3 w-3 rounded-full bg-secondary mr-1" />
+            <div className="h-2.5 w-2.5 rounded-full bg-[#22C55E] mr-2" />
             Potential Savings
           </div>
         </div>
@@ -131,24 +131,44 @@ export function CostChart() {
       <CardContent className="pl-2">
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={costData}>
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+            <AreaChart
+              data={costData}
+              margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+            >
+              <XAxis 
+                dataKey="month" 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+              />
+              <YAxis 
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '6px'
+                }}
+              />
               <Area
                 type="monotone"
                 dataKey="cost"
-                stroke="hsl(var(--primary))"
-                fill="hsl(var(--primary))"
-                fillOpacity={0.2}
+                stroke="#0EA5E9"
+                fill="#0EA5E9"
+                strokeWidth={2}
+                fillOpacity={0.1}
                 stackId="1"
               />
               <Area
                 type="monotone"
                 dataKey="savings"
-                stroke="hsl(var(--secondary))"
-                fill="hsl(var(--secondary))"
-                fillOpacity={0.2}
+                stroke="#22C55E"
+                fill="#22C55E"
+                strokeWidth={2}
+                fillOpacity={0.1}
                 stackId="1"
               />
             </AreaChart>
