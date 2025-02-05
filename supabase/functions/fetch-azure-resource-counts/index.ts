@@ -18,7 +18,8 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const authHeader = req.headers.get('authorization')?.split(' ')[1]
+    // Get the authorization header
+    const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
       console.error('No authorization header provided')
       return new Response(
@@ -33,7 +34,10 @@ serve(async (req) => {
       )
     }
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader)
+    // Extract the JWT token
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+    
     if (userError || !user) {
       console.error('Error getting user:', userError)
       return new Response(
