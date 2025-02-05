@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  CheckCircle, CloudOff
+  CheckCircle, CloudOff, ChevronDown, ChevronUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -21,6 +21,7 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const fetchResourceCounts = async () => {
     setIsLoading(true);
@@ -86,36 +87,48 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   return (
     <Card className="p-6 shadow-lg w-full">
       <CardHeader>
-        <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsConnected(!isConnected)}>
+        <div 
+          className="flex items-center justify-between cursor-pointer" 
+          onClick={() => setIsExpanded(!isExpanded)}
+        >
           <CardTitle className="text-2xl font-bold">{provider.toUpperCase()} Resource Usage</CardTitle>
-          {isLoading ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : isConnected ? (
-            <span className="text-green-500 flex items-center">
-              <CheckCircle className="h-5 w-5 mr-1" /> Connected
-            </span>
-          ) : (
-            <span className="text-red-500 flex items-center">
-              <CloudOff className="h-5 w-5 mr-1" /> Not Connected
-            </span>
-          )}
+          <div className="flex items-center space-x-2">
+            {isLoading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isConnected ? (
+              <>
+                <span className="text-green-500 flex items-center">
+                  <CheckCircle className="h-5 w-5 mr-1" /> Connected
+                </span>
+                {isExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-gray-500" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-gray-500" />
+                )}
+              </>
+            ) : (
+              <span className="text-red-500 flex items-center">
+                <CloudOff className="h-5 w-5 mr-1" /> Not Connected
+              </span>
+            )}
+          </div>
         </div>
       </CardHeader>
-      {isConnected && (
-        <CardContent>
+      {isConnected && isExpanded && (
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
+            <div className="w-full">
+              <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-1/4 text-lg">Resource Type</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Count</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Usage %</TableHead>
-                    <TableHead className="w-1/4 text-lg text-center">Cost (USD)</TableHead>
+                    <TableHead className="w-[40%] text-lg">Resource Type</TableHead>
+                    <TableHead className="w-[20%] text-lg text-center">Count</TableHead>
+                    <TableHead className="w-[20%] text-lg text-center">Usage %</TableHead>
+                    <TableHead className="w-[20%] text-lg text-center">Cost (USD)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
