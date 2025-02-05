@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { 
   Server, Database, HardDrive, Cloud, Cpu,
   BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
-  CheckCircle, CloudOff, ChevronDown, ChevronUp
+  CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -27,7 +27,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [resources, setResources] = useState<ResourceType[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
-  const [isExpanded, setIsExpanded] = useState(true);
 
   const checkConnectionStatus = async () => {
     try {
@@ -61,32 +60,60 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (!isConnected) return;
 
-      let tableName = '';
-      switch (provider.toLowerCase()) {
-        case 'azure':
-          tableName = 'azure_resource_counts';
-          break;
-        case 'aws':
-          tableName = 'aws_resource_counts';
-          break;
-        case 'gcp':
-          tableName = 'gcp_resource_counts';
-          break;
-        default:
-          throw new Error('Unsupported provider');
+      // Type-safe way to handle different resource tables
+      if (provider.toLowerCase() === 'azure') {
+        const { data, error } = await supabase
+          .from('azure_resource_counts')
+          .select('*')
+          .eq('user_id', session?.user.id)
+          .order('last_updated_at', { ascending: false });
+
+        if (error) throw error;
+        
+        // Explicitly map the data to match ResourceType
+        const typedResources: ResourceType[] = (data || []).map(item => ({
+          resource_type: item.resource_type,
+          count: item.count,
+          usage_percentage: item.usage_percentage || 0,
+          cost: item.cost
+        }));
+        
+        setResources(typedResources);
+      } else if (provider.toLowerCase() === 'aws') {
+        const { data, error } = await supabase
+          .from('aws_resource_counts')
+          .select('*')
+          .eq('user_id', session?.user.id)
+          .order('last_updated_at', { ascending: false });
+
+        if (error) throw error;
+        
+        const typedResources: ResourceType[] = (data || []).map(item => ({
+          resource_type: item.resource_type,
+          count: item.count,
+          usage_percentage: item.usage_percentage || 0,
+          cost: item.cost
+        }));
+        
+        setResources(typedResources);
+      } else if (provider.toLowerCase() === 'gcp') {
+        const { data, error } = await supabase
+          .from('gcp_resource_counts')
+          .select('*')
+          .eq('user_id', session?.user.id)
+          .order('last_updated_at', { ascending: false });
+
+        if (error) throw error;
+        
+        const typedResources: ResourceType[] = (data || []).map(item => ({
+          resource_type: item.resource_type,
+          count: item.count,
+          usage_percentage: item.usage_percentage || 0,
+          cost: item.cost
+        }));
+        
+        setResources(typedResources);
       }
-
-      const { data: resourceCounts, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('user_id', session?.user.id)
-        .order('last_updated_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      setResources(resourceCounts || []);
     } catch (err) {
       toast({
         variant: "destructive",
@@ -107,48 +134,36 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   return (
     <Card className="p-6 shadow-lg w-full">
       <CardHeader>
-        <div 
-          className="flex items-center justify-between cursor-pointer" 
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
+        <div className="flex items-center justify-between">
           <CardTitle className="text-2xl font-bold">{provider.toUpperCase()} Resource Usage</CardTitle>
-          <div className="flex items-center space-x-2">
-            {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : isConnected ? (
-              <>
-                <span className="text-green-500 flex items-center">
-                  <CheckCircle className="h-5 w-5 mr-1" /> Connected
-                </span>
-                {isExpanded ? (
-                  <ChevronUp className="h-5 w-5 text-gray-500" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-gray-500" />
-                )}
-              </>
-            ) : (
-              <span className="text-red-500 flex items-center">
-                <CloudOff className="h-5 w-5 mr-1" /> Not Connected
-              </span>
-            )}
-          </div>
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : isConnected ? (
+            <span className="text-green-500 flex items-center">
+              <CheckCircle className="h-5 w-5 mr-1" /> Connected
+            </span>
+          ) : (
+            <span className="text-red-500 flex items-center">
+              <CloudOff className="h-5 w-5 mr-1" /> Not Connected
+            </span>
+          )}
         </div>
       </CardHeader>
-      {isConnected && isExpanded && (
-        <CardContent className="p-0">
+      {isConnected && (
+        <CardContent>
           {isLoading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : (
-            <div className="w-full">
-              <Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[40%] text-lg">Resource Type</TableHead>
-                    <TableHead className="w-[20%] text-lg text-center">Count</TableHead>
-                    <TableHead className="w-[20%] text-lg text-center">Usage %</TableHead>
-                    <TableHead className="w-[20%] text-lg text-center">Cost (USD)</TableHead>
+                    <TableHead className="w-1/4 text-lg">Resource Type</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Count</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Usage %</TableHead>
+                    <TableHead className="w-1/4 text-lg text-center">Cost (USD)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
