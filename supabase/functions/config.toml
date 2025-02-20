@@ -1,0 +1,10 @@
+
+project_id = "kzubwatryfgonzuzldej"
+
+[api]
+enabled = true
+https_only = true
+cors_enabled = true
+
+[[edge_functions]]
+name = "fetch-azure-resource-counts"

@@ -1,275 +1,111 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { DefaultAzureCredential } from "https://esm.sh/@azure/identity@3.1.3";
+import {
+  ComputeManagementClient,
+  VirtualMachine,
+} from "https://esm.sh/@azure/arm-compute@21.0.0";
+import {
+  StorageManagementClient,
+  StorageAccount,
+} from "https://esm.sh/@azure/arm-storage@17.2.0";
+import {
+  SqlManagementClient,
+  Server,
+} from "https://esm.sh/@azure/arm-sql@9.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Starting fetch-azure-resource-counts function')
-    
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    console.log("Receiving request to fetch Azure resources...");
+    const { credentials } = await req.json();
 
-    // Validate authentication
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      console.error('No authorization header provided')
-      throw new Error('No authorization header provided')
+    if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
+      console.error("Missing required Azure credentials");
+      return new Response(
+        JSON.stringify({ error: "Missing required Azure credentials" }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
     }
 
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
-    
-    if (userError || !user) {
-      console.error('Error getting user:', userError)
-      throw new Error('Unauthorized')
-    }
+    console.log("Creating Azure clients...");
+    const creds = {
+      clientId: credentials.clientId,
+      clientSecret: credentials.clientSecret,
+      tenantId: credentials.tenantId
+    };
 
-    console.log('Fetching Azure connections for user:', user.id)
+    const computeClient = new ComputeManagementClient(creds, credentials.subscriptionId);
+    const storageClient = new StorageManagementClient(creds, credentials.subscriptionId);
+    const sqlClient = new SqlManagementClient(creds, credentials.subscriptionId);
 
-    // Get Azure credentials from cloud_provider_connections
-    const { data: connections, error: connectionError } = await supabaseClient
-      .from('cloud_provider_connections')
-      .select('*')
-      .eq('provider', 'azure')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+    console.log("Fetching Azure resources...");
 
-    if (connectionError) {
-      console.error('Error fetching Azure connections:', connectionError)
-      throw new Error('Error fetching Azure connections')
-    }
+    // Fetch all VMs
+    const vms = await computeClient.virtualMachines.listAll();
+    const vmCount = Array.from(await vms.byPage()).flat().length;
+    console.log(`Found ${vmCount} VMs`);
 
-    if (!connections || connections.length === 0) {
-      console.error('No active Azure connections found')
-      throw new Error('No active Azure connection found')
-    }
+    // Fetch all storage accounts
+    const storageAccounts = await storageClient.storageAccounts.list();
+    const storageCount = Array.from(await storageAccounts.byPage()).flat().length;
+    console.log(`Found ${storageCount} storage accounts`);
 
-    // Get the most recent active connection
-    const connection = connections[0];
-    const lastSyncTime = connection.last_sync_at ? new Date(connection.last_sync_at).getTime() : 0;
-    const oneHourAgo = new Date().getTime() - (60 * 60 * 1000);
+    // Fetch all SQL databases
+    const sqlServers = await sqlClient.servers.list();
+    const sqlCount = Array.from(await sqlServers.byPage()).flat().length;
+    console.log(`Found ${sqlCount} SQL servers`);
 
-    if (lastSyncTime <= oneHourAgo) {
-      console.error('Azure connection is stale')
-      throw new Error('Azure connection is stale')
-    }
-
-    const { credentials } = connection;
-    console.log('Retrieved Azure credentials for user')
-
-    if (!credentials?.clientId || !credentials?.clientSecret || !credentials?.tenantId || !credentials?.subscriptionId) {
-      console.error('Invalid Azure credentials structure:', credentials)
-      await supabaseClient
-        .from('cloud_provider_connections')
-        .update({ is_active: false })
-        .eq('id', connection.id)
-
-      throw new Error('Invalid Azure credentials configuration')
-    }
-
-    console.log('Getting Azure access token')
-
-    // Get Azure access token
-    const tokenResponse = await fetch(
-      `https://login.microsoftonline.com/${credentials.tenantId}/oauth2/v2.0/token`,
+    const resourceData = [
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'client_credentials',
-          client_id: credentials.clientId,
-          client_secret: credentials.clientSecret,
-          scope: 'https://management.azure.com/.default',
-        }),
+        resource_type: "Virtual Machines",
+        count: vmCount,
+        usage_percentage: Math.round(Math.random() * 100), // Mock usage data
+        cost: Number((Math.random() * 1000).toFixed(2)) // Mock cost data
+      },
+      {
+        resource_type: "Storage Accounts",
+        count: storageCount,
+        usage_percentage: Math.round(Math.random() * 100),
+        cost: Number((Math.random() * 500).toFixed(2))
+      },
+      {
+        resource_type: "SQL Databases",
+        count: sqlCount,
+        usage_percentage: Math.round(Math.random() * 100),
+        cost: Number((Math.random() * 800).toFixed(2))
       }
-    )
+    ];
 
-    const tokenData = await tokenResponse.json()
-    
-    if (!tokenResponse.ok || !tokenData.access_token) {
-      console.error('Failed to get Azure token:', tokenData)
-      await supabaseClient
-        .from('cloud_provider_connections')
-        .update({ is_active: false })
-        .eq('id', connection.id)
-
-      throw new Error(tokenData.error === 'invalid_client' 
-        ? 'Invalid Azure credentials. Please verify your Client ID and Client Secret are correct.'
-        : 'Failed to authenticate with Azure')
-    }
-
-    console.log('Successfully obtained Azure token')
-    console.log('Fetching Azure resources...')
-
-    // Fetch resources from various Azure services
-    const responses = await Promise.allSettled([
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Compute/virtualMachines?api-version=2023-07-01`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Sql/servers?api-version=2023-02-01-preview`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Storage/storageAccounts?api-version=2023-01-01`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.Web/sites?api-version=2022-03-01`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.ContainerService/managedClusters?api-version=2023-07-02-preview`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.DocumentDB/databaseAccounts?api-version=2023-09-15`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.CognitiveServices/accounts?api-version=2023-05-01`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      ),
-      fetch(
-        `https://management.azure.com/subscriptions/${credentials.subscriptionId}/providers/Microsoft.App/containerApps?api-version=2023-05-01`,
-        { headers: { 'Authorization': `Bearer ${tokenData.access_token}` } }
-      )
-    ])
-
-    // Process responses and handle errors
-    const results = await Promise.all(
-      responses.map(async (response, index) => {
-        if (response.status === 'rejected') {
-          console.error(`Error fetching resource type ${index}:`, response.reason)
-          return { value: { value: [] } }
-        }
-        
-        const result = response.value
-        if (!result.ok) {
-          console.error(`HTTP error for resource type ${index}:`, result.status)
-          return { value: { value: [] } }
-        }
-        
-        return result.json()
-      })
-    )
-
-    const [vmData, sqlData, storageData, webAppsData, aksData, cosmosData, cognitiveData, containerAppsData] = results
-
-    const resourceCounts = [
-      {
-        resource_type: 'Virtual Machines',
-        count: vmData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'SQL Databases',
-        count: sqlData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'Storage Accounts',
-        count: storageData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'App Services',
-        count: webAppsData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'Kubernetes Clusters',
-        count: aksData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'Cosmos DB',
-        count: cosmosData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'Cognitive Services',
-        count: cognitiveData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      },
-      {
-        resource_type: 'Container Apps',
-        count: containerAppsData.value?.length || 0,
-        usage_percentage: Math.floor(Math.random() * 100),
-        cost: 0,
-      }
-    ]
-
-    // Update resource counts in database
-    const { error: upsertError } = await supabaseClient
-      .from('azure_resource_counts')
-      .upsert(
-        resourceCounts.map(resource => ({
-          user_id: user.id,
-          resource_type: resource.resource_type,
-          count: resource.count,
-          usage_percentage: resource.usage_percentage,
-          cost: resource.cost,
-          last_updated_at: new Date().toISOString()
-        })),
-        {
-          onConflict: 'user_id,resource_type',
-          ignoreDuplicates: false
-        }
-      )
-
-    if (upsertError) {
-      console.error('Error upserting resource counts:', upsertError)
-      throw upsertError
-    }
-
+    console.log("Successfully fetched all Azure resources");
     return new Response(
-      JSON.stringify({ success: true, data: resourceCounts }),
+      JSON.stringify(resourceData),
       { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200 
       }
-    )
+    );
 
   } catch (error) {
-    console.error('Error in fetch-azure-resource-counts:', error)
+    console.error("Error in fetch-azure-resource-counts:", error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'An unexpected error occurred',
-      }),
-      {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json'
-        },
-        status: error.message.includes('Unauthorized') ? 401 : 500
+      JSON.stringify({ error: error.message }),
+      { 
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       }
-    )
+    );
   }
-})
+});
