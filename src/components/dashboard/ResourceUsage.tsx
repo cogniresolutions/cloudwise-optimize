@@ -1,32 +1,20 @@
+
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  Server, Database, HardDrive, Cloud, Cpu,
-  BrainCog, Bot, LayoutGrid, Loader2, DollarSign,
+  Server, Database, HardDrive, Loader2, DollarSign,
   CheckCircle, CloudOff
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { supabase } from "@/integrations/supabase/client";
-import { ClientSecretCredential } from "@azure/identity";
-import { ComputeManagementClient } from "@azure/arm-compute";
-import { StorageManagementClient } from "@azure/arm-storage";
-import { SqlManagementClient } from "@azure/arm-sql";
-import { ConsumptionManagementClient } from "@azure/arm-consumption";
 
 interface ResourceType {
   resource_type: string;
   count: number;
   usage_percentage: number;
   cost: number | null;
-}
-
-interface AzureCredentials {
-  tenantId: string;
-  clientId: string;
-  clientSecret: string;
-  subscriptionId: string;
 }
 
 interface ResourceUsageProps {
@@ -41,97 +29,48 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
   const fetchAzureResources = async () => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) {
+      console.log("No user session found");
+      return;
+    }
 
     setIsLoading(true);
     try {
+      // First check if we have valid credentials
       const { data: connectionData, error: connectionError } = await supabase
         .from('cloud_provider_connections')
-        .select('credentials')
+        .select('credentials, is_active')
         .eq('user_id', session.user.id)
         .eq('provider', 'azure')
         .eq('is_active', true)
         .single();
 
-      if (connectionError || !connectionData?.credentials) {
-        throw new Error("No valid Azure credentials found");
+      if (connectionError) {
+        console.error("Error fetching Azure credentials:", connectionError);
+        throw new Error("Failed to fetch Azure credentials");
       }
 
-      const credentials = connectionData.credentials as { [key: string]: any };
-      if (!credentials.tenantId || !credentials.clientId || 
-          !credentials.clientSecret || !credentials.subscriptionId) {
-        throw new Error("Invalid Azure credentials format");
+      if (!connectionData?.credentials || !connectionData.is_active) {
+        console.log("No active Azure credentials found");
+        throw new Error("No active Azure connection found");
       }
 
-      const azureCredentials: AzureCredentials = {
-        tenantId: credentials.tenantId,
-        clientId: credentials.clientId,
-        clientSecret: credentials.clientSecret,
-        subscriptionId: credentials.subscriptionId
-      };
-      
-      const credential = new ClientSecretCredential(
-        azureCredentials.tenantId,
-        azureCredentials.clientId,
-        azureCredentials.clientSecret
-      );
+      // Fetch resource counts from our Edge Function
+      const { data: resourceData, error: resourceError } = await supabase.functions.invoke('fetch-azure-resource-counts', {
+        body: { credentials: connectionData.credentials }
+      });
 
-      const computeClient = new ComputeManagementClient(credential, azureCredentials.subscriptionId);
-      const storageClient = new StorageManagementClient(credential, azureCredentials.subscriptionId);
-      const sqlClient = new SqlManagementClient(credential, azureCredentials.subscriptionId);
-      const consumptionClient = new ConsumptionManagementClient(credential, azureCredentials.subscriptionId);
-
-      const vms = [];
-      for await (const vm of computeClient.virtualMachines.listAll()) {
-        vms.push(vm);
+      if (resourceError) {
+        console.error("Error fetching Azure resources:", resourceError);
+        throw resourceError;
       }
 
-      const storageAccounts = [];
-      for await (const account of storageClient.storageAccounts.list()) {
-        storageAccounts.push(account);
+      if (!resourceData || !Array.isArray(resourceData)) {
+        console.error("Invalid resource data received:", resourceData);
+        throw new Error("Invalid resource data received");
       }
 
-      const sqlServers = [];
-      for await (const server of sqlClient.servers.list()) {
-        sqlServers.push(server);
-      }
-
-      const usageDetails = [];
-      for await (const usage of consumptionClient.usageDetails.list(azureCredentials.subscriptionId, {
-        expand: 'properties'
-      })) {
-        usageDetails.push(usage);
-      }
-
-      const getResourceCost = (resourceType: string) => {
-        const usage = usageDetails.find(
-          (item: any) => item.instanceName?.toLowerCase().includes(resourceType.toLowerCase())
-        );
-        return usage?.pretaxCost ? parseFloat(usage.pretaxCost) : 0;
-      };
-
-      const newResources: ResourceType[] = [
-        {
-          resource_type: "Virtual Machines",
-          count: vms.length,
-          usage_percentage: 70,
-          cost: getResourceCost("virtualMachines"),
-        },
-        {
-          resource_type: "Storage Accounts",
-          count: storageAccounts.length,
-          usage_percentage: 50,
-          cost: getResourceCost("storageAccounts"),
-        },
-        {
-          resource_type: "SQL Databases",
-          count: sqlServers.length,
-          usage_percentage: 40,
-          cost: getResourceCost("sqlDatabases"),
-        },
-      ];
-
-      setResources(newResources);
+      setResources(resourceData);
       setIsConnected(true);
     } catch (error) {
       console.error("Error fetching Azure resources:", error);
