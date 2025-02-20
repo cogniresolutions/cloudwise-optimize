@@ -36,14 +36,16 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
     setIsLoading(true);
     try {
-      // First check if we have valid credentials
+      // First check if we have valid credentials - using maybeSingle() to handle no results gracefully
       const { data: connectionData, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('credentials, is_active')
         .eq('user_id', session.user.id)
         .eq('provider', 'azure')
         .eq('is_active', true)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (connectionError) {
         console.error("Error fetching Azure credentials:", connectionError);
@@ -52,7 +54,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       if (!connectionData?.credentials || !connectionData.is_active) {
         console.log("No active Azure credentials found");
-        throw new Error("No active Azure connection found");
+        setIsConnected(false);
+        return;
       }
 
       // Fetch resource counts from our Edge Function
