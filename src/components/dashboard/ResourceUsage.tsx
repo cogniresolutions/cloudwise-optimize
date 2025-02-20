@@ -58,18 +58,22 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         return;
       }
 
-      // Log the shape of credentials before sending
       console.log("Sending credentials shape:", Object.keys(connectionData.credentials));
 
-      // Fetch resource counts from our Edge Function
+      // Call the edge function with proper headers
       const { data: resourceData, error: resourceError } = await supabase.functions.invoke(
         'fetch-azure-resource-counts',
         {
-          body: JSON.stringify({
+          body: {
             credentials: connectionData.credentials
-          })
+          },
+          headers: {
+            "Content-Type": "application/json"
+          }
         }
       );
+
+      console.log("Response from edge function:", resourceData, resourceError);
 
       if (resourceError) {
         console.error("Error fetching Azure resources:", resourceError);

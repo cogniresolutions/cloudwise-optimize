@@ -17,12 +17,14 @@ serve(async (req) => {
     
     // Get the raw body text first
     const bodyText = await req.text();
+    console.log("Request content-type:", req.headers.get("content-type"));
     console.log("Received body text:", bodyText);
 
     // Try to parse the JSON
     let body;
     try {
       body = JSON.parse(bodyText);
+      console.log("Successfully parsed body:", JSON.stringify(body, null, 2));
     } catch (e) {
       console.error("Error parsing request JSON:", e, "Body was:", bodyText);
       return new Response(
@@ -40,7 +42,7 @@ serve(async (req) => {
     // Extract and validate credentials
     const { credentials } = body;
     if (!credentials) {
-      console.error("No credentials provided");
+      console.error("No credentials provided in body:", body);
       return new Response(
         JSON.stringify({ 
           error: "No credentials provided",
@@ -53,7 +55,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Received credentials with keys:", Object.keys(credentials));
+    console.log("Validating credentials with keys:", Object.keys(credentials));
 
     const requiredFields = ['clientId', 'clientSecret', 'tenantId', 'subscriptionId'];
     const missingFields = requiredFields.filter(field => !credentials[field]);
@@ -74,6 +76,7 @@ serve(async (req) => {
     }
 
     // Return mock data for now
+    console.log("All credentials validated, returning mock data");
     const mockResourceData = [
       {
         resource_type: "Virtual Machines",
