@@ -64,7 +64,9 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       const response = await supabase.functions.invoke(
         'fetch-azure-resource-counts',
         {
-          body: connectionData.credentials
+          body: {
+            credentials: connectionData.credentials
+          }
         }
       );
 
