@@ -15,19 +15,6 @@ serve(async (req) => {
   try {
     console.log("Receiving request to fetch Azure resources...");
     
-    // Check if we have a request body
-    const contentLength = req.headers.get('content-length');
-    if (!contentLength || parseInt(contentLength) === 0) {
-      console.error("Empty request body");
-      return new Response(
-        JSON.stringify({ error: "Request body is empty" }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        }
-      );
-    }
-
     // Get the raw body text first
     const bodyText = await req.text();
     console.log("Received body text:", bodyText);
@@ -37,11 +24,11 @@ serve(async (req) => {
     try {
       body = JSON.parse(bodyText);
     } catch (e) {
-      console.error("Error parsing request JSON:", e);
+      console.error("Error parsing request JSON:", e, "Body was:", bodyText);
       return new Response(
         JSON.stringify({ 
           error: "Invalid JSON in request body",
-          receivedBody: bodyText
+          receivedText: bodyText
         }),
         { 
           status: 400,
@@ -50,16 +37,34 @@ serve(async (req) => {
       );
     }
 
-    // Extract credentials
+    // Extract and validate credentials
     const { credentials } = body;
-    console.log("Extracted credentials object:", JSON.stringify(credentials, null, 2));
+    if (!credentials) {
+      console.error("No credentials provided");
+      return new Response(
+        JSON.stringify({ 
+          error: "No credentials provided",
+          receivedBody: body
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
 
-    if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-      console.error("Missing required Azure credentials");
+    console.log("Received credentials with keys:", Object.keys(credentials));
+
+    const requiredFields = ['clientId', 'clientSecret', 'tenantId', 'subscriptionId'];
+    const missingFields = requiredFields.filter(field => !credentials[field]);
+    
+    if (missingFields.length > 0) {
+      console.error("Missing required Azure credentials fields:", missingFields);
       return new Response(
         JSON.stringify({ 
           error: "Missing required Azure credentials",
-          receivedCredentials: credentials ? Object.keys(credentials) : null
+          missingFields,
+          receivedFields: Object.keys(credentials)
         }),
         { 
           status: 400,
@@ -68,7 +73,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Credentials validated, returning mock data for testing");
+    // Return mock data for now
     const mockResourceData = [
       {
         resource_type: "Virtual Machines",
