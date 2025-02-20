@@ -97,13 +97,8 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       }
 
       const usageDetails = [];
-      const startDate = new Date();
-      startDate.setMonth(startDate.getMonth() - 1);
-      
       for await (const usage of consumptionClient.usageDetails.list(azureCredentials.subscriptionId, {
-        expand: 'properties',
-        startDate: startDate.toISOString(),
-        endDate: new Date().toISOString()
+        expand: 'properties'
       })) {
         usageDetails.push(usage);
       }
