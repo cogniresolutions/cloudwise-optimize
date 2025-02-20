@@ -45,7 +45,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
     setIsLoading(true);
     try {
-      // Fetch Azure credentials from Supabase
       const { data: connectionData, error: connectionError } = await supabase
         .from('cloud_provider_connections')
         .select('credentials')
@@ -58,7 +57,6 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         throw new Error("No valid Azure credentials found");
       }
 
-      // Type assertion with runtime check
       const credentials = connectionData.credentials as { [key: string]: any };
       if (!credentials.tenantId || !credentials.clientId || 
           !credentials.clientSecret || !credentials.subscriptionId) {
@@ -78,13 +76,11 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
         azureCredentials.clientSecret
       );
 
-      // Initialize clients
       const computeClient = new ComputeManagementClient(credential, azureCredentials.subscriptionId);
       const storageClient = new StorageManagementClient(credential, azureCredentials.subscriptionId);
       const sqlClient = new SqlManagementClient(credential, azureCredentials.subscriptionId);
       const consumptionClient = new ConsumptionManagementClient(credential, azureCredentials.subscriptionId);
 
-      // Fetch resources using async iterators
       const vms = [];
       for await (const vm of computeClient.virtualMachines.listAll()) {
         vms.push(vm);
@@ -101,7 +97,14 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
       }
 
       const usageDetails = [];
-      for await (const usage of consumptionClient.usageDetails.list()) {
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      
+      for await (const usage of consumptionClient.usageDetails.list(azureCredentials.subscriptionId, {
+        expand: 'properties',
+        startDate: startDate.toISOString(),
+        endDate: new Date().toISOString()
+      })) {
         usageDetails.push(usage);
       }
 

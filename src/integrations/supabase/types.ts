@@ -186,6 +186,125 @@ export type Database = {
           },
         ]
       }
+      cached_music_recommendations: {
+        Row: {
+          created_at: string
+          id: string
+          is_stale: boolean
+          location_name: string | null
+          mood: string
+          recommendations: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          location_name?: string | null
+          mood: string
+          recommendations?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          location_name?: string | null
+          mood?: string
+          recommendations?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      calming_activities: {
+        Row: {
+          activity_type: string
+          created_at: string
+          description: string | null
+          difficulty_level: string | null
+          duration_seconds: number | null
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          title: string
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          description?: string | null
+          difficulty_level?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          title: string
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          description?: string | null
+          difficulty_level?: string | null
+          duration_seconds?: number | null
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          title?: string
+        }
+        Relationships: []
+      }
+      calming_sessions: {
+        Row: {
+          activity_id: string | null
+          completed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          effectiveness_rating: number | null
+          final_mood: string | null
+          id: string
+          initial_mood: string | null
+          notes: string | null
+          started_at: string
+          user_id: string
+        }
+        Insert: {
+          activity_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          effectiveness_rating?: number | null
+          final_mood?: string | null
+          id?: string
+          initial_mood?: string | null
+          notes?: string | null
+          started_at?: string
+          user_id: string
+        }
+        Update: {
+          activity_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          effectiveness_rating?: number | null
+          final_mood?: string | null
+          id?: string
+          initial_mood?: string | null
+          notes?: string | null
+          started_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calming_sessions_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "calming_activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cloud_cost_overview: {
         Row: {
           aws_cost: number | null
@@ -447,6 +566,68 @@ export type Database = {
           },
         ]
       }
+      docs_content: {
+        Row: {
+          content: string
+          doc_type: string
+          file_path: string
+          id: string
+          last_modified: string | null
+          title: string
+          version_id: string | null
+        }
+        Insert: {
+          content: string
+          doc_type: string
+          file_path: string
+          id?: string
+          last_modified?: string | null
+          title: string
+          version_id?: string | null
+        }
+        Update: {
+          content?: string
+          doc_type?: string
+          file_path?: string
+          id?: string
+          last_modified?: string | null
+          title?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "docs_content_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "docs_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      docs_versions: {
+        Row: {
+          author: string
+          branch_name: string
+          commit_hash: string
+          id: string
+          version_date: string | null
+        }
+        Insert: {
+          author: string
+          branch_name: string
+          commit_hash: string
+          id?: string
+          version_date?: string | null
+        }
+        Update: {
+          author?: string
+          branch_name?: string
+          commit_hash?: string
+          id?: string
+          version_date?: string | null
+        }
+        Relationships: []
+      }
       emotion_analysis: {
         Row: {
           analysis_timestamp: string | null
@@ -494,6 +675,185 @@ export type Database = {
           },
         ]
       }
+      energy_activities: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          description: string | null
+          duration_seconds: number
+          id: string
+          intensity_level: Database["public"]["Enums"]["intensity_level"]
+          metadata: Json | null
+          title: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration_seconds: number
+          id: string
+          intensity_level: Database["public"]["Enums"]["intensity_level"]
+          metadata?: Json | null
+          title: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          duration_seconds?: number
+          id?: string
+          intensity_level?: Database["public"]["Enums"]["intensity_level"]
+          metadata?: Json | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "energy_activities_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "energy_activity_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      energy_activity_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon: string
+          id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      energy_activity_feedback: {
+        Row: {
+          activity_id: string | null
+          created_at: string
+          effectiveness_rating: number | null
+          id: string
+          mood_after: string | null
+          mood_before: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          created_at?: string
+          effectiveness_rating?: number | null
+          id?: string
+          mood_after?: string | null
+          mood_before?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          created_at?: string
+          effectiveness_rating?: number | null
+          id?: string
+          mood_after?: string | null
+          mood_before?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "energy_activity_feedback_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "energy_activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      energy_quotes: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          effectiveness_rating: number | null
+          id: string
+          mood_after: string | null
+          mood_before: string | null
+          quote: string
+          user_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          effectiveness_rating?: number | null
+          id?: string
+          mood_after?: string | null
+          mood_before?: string | null
+          quote: string
+          user_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          effectiveness_rating?: number | null
+          id?: string
+          mood_after?: string | null
+          mood_before?: string | null
+          quote?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "energy_quotes_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "energy_activity_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      facial_expressions: {
+        Row: {
+          animation_data: Json | null
+          created_at: string
+          emotion: string
+          id: string
+          intensity: number | null
+          persona_id: string | null
+        }
+        Insert: {
+          animation_data?: Json | null
+          created_at?: string
+          emotion: string
+          id?: string
+          intensity?: number | null
+          persona_id?: string | null
+        }
+        Update: {
+          animation_data?: Json | null
+          created_at?: string
+          emotion?: string
+          id?: string
+          intensity?: number | null
+          persona_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facial_expressions_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historical_cost_data: {
         Row: {
           cost_date: string
@@ -531,6 +891,92 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memory_challenge_activities: {
+        Row: {
+          ai_recommendations: Json | null
+          category: string
+          created_at: string | null
+          description: string | null
+          difficulty_level: string
+          game_data: Json | null
+          game_type: string
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          metadata: Json | null
+          title: string
+          video_url: string
+        }
+        Insert: {
+          ai_recommendations?: Json | null
+          category: string
+          created_at?: string | null
+          description?: string | null
+          difficulty_level: string
+          game_data?: Json | null
+          game_type?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          metadata?: Json | null
+          title: string
+          video_url: string
+        }
+        Update: {
+          ai_recommendations?: Json | null
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          difficulty_level?: string
+          game_data?: Json | null
+          game_type?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          metadata?: Json | null
+          title?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
+      message_history: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          persona_id: string | null
+          role: string
+          sentiment: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          persona_id?: string | null
+          role: string
+          sentiment?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          persona_id?: string | null
+          role?: string
+          sentiment?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_history_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
             referencedColumns: ["id"]
           },
         ]
@@ -611,6 +1057,7 @@ export type Database = {
         Row: {
           confidence: number
           created_at: string
+          deleted_at: string | null
           id: string
           mood: string
           notes: string | null
@@ -620,6 +1067,7 @@ export type Database = {
         Insert: {
           confidence: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           mood: string
           notes?: string | null
@@ -629,6 +1077,7 @@ export type Database = {
         Update: {
           confidence?: number
           created_at?: string
+          deleted_at?: string | null
           id?: string
           mood?: string
           notes?: string | null
@@ -698,6 +1147,78 @@ export type Database = {
           id?: string
           mood_pattern?: string
           recommendation?: string
+        }
+        Relationships: []
+      }
+      music_preferences: {
+        Row: {
+          created_at: string
+          favorite_genres: string[]
+          id: string
+          language_preference: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          favorite_genres?: string[]
+          id?: string
+          language_preference?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          favorite_genres?: string[]
+          id?: string
+          language_preference?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      music_recommendations: {
+        Row: {
+          artist: string | null
+          confidence: number | null
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          mood: string
+          platform: Database["public"]["Enums"]["music_platform"]
+          title: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          artist?: string | null
+          confidence?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          mood?: string
+          platform: Database["public"]["Enums"]["music_platform"]
+          title: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          artist?: string | null
+          confidence?: number | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          mood?: string
+          platform?: Database["public"]["Enums"]["music_platform"]
+          title?: string
+          url?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -794,34 +1315,124 @@ export type Database = {
           },
         ]
       }
-      profiles: {
+      personas: {
         Row: {
           avatar_url: string | null
-          birth_date: string | null
           created_at: string
+          description: string | null
           id: string
-          music_preferences: Json | null
+          model_config: Json | null
+          name: string
+          personality: string | null
+          processing_status: string | null
+          skills: string[] | null
+          status: string | null
+          topics: string[] | null
+          updated_at: string
+          user_id: string | null
+          voice_config: Json | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          model_config?: Json | null
+          name: string
+          personality?: string | null
+          processing_status?: string | null
+          skills?: string[] | null
+          status?: string | null
+          topics?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+          voice_config?: Json | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          model_config?: Json | null
+          name?: string
+          personality?: string | null
+          processing_status?: string | null
+          skills?: string[] | null
+          status?: string | null
+          topics?: string[] | null
+          updated_at?: string
+          user_id?: string | null
+          voice_config?: Json | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          account_status: string | null
+          age: number | null
+          avatar_url: string | null
+          birth_date: string | null
+          country: string | null
+          created_at: string
+          deleted_at: string | null
+          device_language: string | null
+          email: string | null
+          email_confirmed: boolean | null
+          email_verified: boolean | null
+          favorite_genres: string[] | null
+          full_name: string | null
+          id: string
+          last_login: string | null
+          music_language_preference: string | null
           preferred_language: string | null
+          preferred_languages: string[] | null
+          profile_completed: boolean | null
           updated_at: string
           username: string | null
         }
         Insert: {
+          account_status?: string | null
+          age?: number | null
           avatar_url?: string | null
           birth_date?: string | null
+          country?: string | null
           created_at?: string
+          deleted_at?: string | null
+          device_language?: string | null
+          email?: string | null
+          email_confirmed?: boolean | null
+          email_verified?: boolean | null
+          favorite_genres?: string[] | null
+          full_name?: string | null
           id: string
-          music_preferences?: Json | null
+          last_login?: string | null
+          music_language_preference?: string | null
           preferred_language?: string | null
+          preferred_languages?: string[] | null
+          profile_completed?: boolean | null
           updated_at?: string
           username?: string | null
         }
         Update: {
+          account_status?: string | null
+          age?: number | null
           avatar_url?: string | null
           birth_date?: string | null
+          country?: string | null
           created_at?: string
+          deleted_at?: string | null
+          device_language?: string | null
+          email?: string | null
+          email_confirmed?: boolean | null
+          email_verified?: boolean | null
+          favorite_genres?: string[] | null
+          full_name?: string | null
           id?: string
-          music_preferences?: Json | null
+          last_login?: string | null
+          music_language_preference?: string | null
           preferred_language?: string | null
+          preferred_languages?: string[] | null
+          profile_completed?: boolean | null
           updated_at?: string
           username?: string | null
         }
@@ -946,6 +1557,33 @@ export type Database = {
           },
         ]
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          id: string
+          plan_type: string
+          start_date: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          plan_type: string
+          start_date: string
+          status: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          plan_type?: string
+          start_date?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       tavus_sessions: {
         Row: {
           conversation_id: string
@@ -1032,38 +1670,53 @@ export type Database = {
       training_videos: {
         Row: {
           analysis_feedback: Json | null
+          analysis_status: string | null
           consent_url: string | null
+          consent_verified: boolean | null
           created_at: string
           duration: number | null
           id: string
           processing_status: string | null
           replica_id: string | null
           status: string | null
+          transcription_text: string | null
           user_id: string | null
+          video_analysis_results: Json | null
+          video_indexer_id: string | null
           video_url: string
         }
         Insert: {
           analysis_feedback?: Json | null
+          analysis_status?: string | null
           consent_url?: string | null
+          consent_verified?: boolean | null
           created_at?: string
           duration?: number | null
           id?: string
           processing_status?: string | null
           replica_id?: string | null
           status?: string | null
+          transcription_text?: string | null
           user_id?: string | null
+          video_analysis_results?: Json | null
+          video_indexer_id?: string | null
           video_url: string
         }
         Update: {
           analysis_feedback?: Json | null
+          analysis_status?: string | null
           consent_url?: string | null
+          consent_verified?: boolean | null
           created_at?: string
           duration?: number | null
           id?: string
           processing_status?: string | null
           replica_id?: string | null
           status?: string | null
+          transcription_text?: string | null
           user_id?: string | null
+          video_analysis_results?: Json | null
+          video_indexer_id?: string | null
           video_url?: string
         }
         Relationships: [
@@ -1115,6 +1768,36 @@ export type Database = {
           },
         ]
       }
+      user_music_preferences: {
+        Row: {
+          created_at: string
+          genres: string[]
+          id: string
+          mood: string
+          preferred_platforms: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          genres?: string[]
+          id?: string
+          mood: string
+          preferred_platforms?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          genres?: string[]
+          id?: string
+          mood?: string
+          preferred_platforms?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_screenshots: {
         Row: {
           analysis_data: Json | null
@@ -1146,6 +1829,92 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "tavus_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      validated_music_recommendations: {
+        Row: {
+          artist: string | null
+          created_at: string | null
+          id: string
+          is_validated: boolean | null
+          language: string | null
+          last_validated_at: string | null
+          mood: string
+          platform: Database["public"]["Enums"]["music_platform"]
+          region_code: string
+          title: string
+          updated_at: string | null
+          url: string
+        }
+        Insert: {
+          artist?: string | null
+          created_at?: string | null
+          id?: string
+          is_validated?: boolean | null
+          language?: string | null
+          last_validated_at?: string | null
+          mood: string
+          platform: Database["public"]["Enums"]["music_platform"]
+          region_code: string
+          title: string
+          updated_at?: string | null
+          url: string
+        }
+        Update: {
+          artist?: string | null
+          created_at?: string | null
+          id?: string
+          is_validated?: boolean | null
+          language?: string | null
+          last_validated_at?: string | null
+          mood?: string
+          platform?: Database["public"]["Enums"]["music_platform"]
+          region_code?: string
+          title?: string
+          updated_at?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
+      video_indexer_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          operation: string | null
+          request_details: Json | null
+          response_details: Json | null
+          status: string | null
+          video_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          operation?: string | null
+          request_details?: Json | null
+          response_details?: Json | null
+          status?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          operation?: string | null
+          request_details?: Json | null
+          response_details?: Json | null
+          status?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_indexer_logs_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "training_videos"
             referencedColumns: ["id"]
           },
         ]
@@ -1339,6 +2108,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_music_validations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_old_screenshots: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1350,9 +2123,15 @@ export type Database = {
         }
         Returns: string
       }
+      mark_stale_recommendations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       cloud_provider: "aws" | "gcp" | "azure"
+      intensity_level: "low" | "medium" | "high"
+      music_platform: "Spotify" | "YouTube Music"
     }
     CompositeTypes: {
       [_ in never]: never
