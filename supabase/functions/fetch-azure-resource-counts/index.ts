@@ -15,14 +15,12 @@ serve(async (req) => {
   try {
     console.log("Receiving request to fetch Azure resources...");
     
-    // Add error handling for JSON parsing
-    let body;
-    try {
-      body = await req.json();
-    } catch (e) {
-      console.error("Error parsing request JSON:", e);
+    // Check if we have a request body
+    const contentLength = req.headers.get('content-length');
+    if (!contentLength || parseInt(contentLength) === 0) {
+      console.error("Empty request body");
       return new Response(
-        JSON.stringify({ error: "Invalid JSON in request body" }),
+        JSON.stringify({ error: "Request body is empty" }),
         { 
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -30,7 +28,31 @@ serve(async (req) => {
       );
     }
 
+    // Get the raw body text first
+    const bodyText = await req.text();
+    console.log("Received body text:", bodyText);
+
+    // Try to parse the JSON
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (e) {
+      console.error("Error parsing request JSON:", e);
+      return new Response(
+        JSON.stringify({ 
+          error: "Invalid JSON in request body",
+          receivedBody: bodyText
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    // Extract credentials
     const { credentials } = body;
+    console.log("Extracted credentials object:", JSON.stringify(credentials, null, 2));
 
     if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
       console.error("Missing required Azure credentials");
