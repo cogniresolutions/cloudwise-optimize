@@ -15,18 +15,20 @@ serve(async (req) => {
   try {
     console.log("Receiving request to fetch Azure resources...");
     
+    const contentType = req.headers.get("content-type");
+    console.log("Request content-type:", contentType);
+
     // Get the raw body text first
     const bodyText = await req.text();
-    console.log("Request content-type:", req.headers.get("content-type"));
     console.log("Received body text:", bodyText);
 
     // Try to parse the JSON
-    let body;
+    let credentials;
     try {
-      body = JSON.parse(bodyText);
-      console.log("Successfully parsed body:", JSON.stringify(body, null, 2));
+      credentials = JSON.parse(bodyText);
+      console.log("Successfully parsed credentials:", Object.keys(credentials));
     } catch (e) {
-      console.error("Error parsing request JSON:", e, "Body was:", bodyText);
+      console.error("Error parsing request JSON:", e);
       return new Response(
         JSON.stringify({ 
           error: "Invalid JSON in request body",
@@ -39,23 +41,17 @@ serve(async (req) => {
       );
     }
 
-    // Extract and validate credentials
-    const { credentials } = body;
+    // Validate credentials directly since they're the body now
     if (!credentials) {
-      console.error("No credentials provided in body:", body);
+      console.error("No credentials provided in body");
       return new Response(
-        JSON.stringify({ 
-          error: "No credentials provided",
-          receivedBody: body
-        }),
+        JSON.stringify({ error: "No credentials provided" }),
         { 
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         }
       );
     }
-
-    console.log("Validating credentials with keys:", Object.keys(credentials));
 
     const requiredFields = ['clientId', 'clientSecret', 'tenantId', 'subscriptionId'];
     const missingFields = requiredFields.filter(field => !credentials[field]);

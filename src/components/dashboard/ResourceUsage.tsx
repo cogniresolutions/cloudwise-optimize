@@ -60,32 +60,26 @@ export function ResourceUsage({ provider }: ResourceUsageProps) {
 
       console.log("Sending credentials shape:", Object.keys(connectionData.credentials));
 
-      // Call the edge function with proper headers
-      const { data: resourceData, error: resourceError } = await supabase.functions.invoke(
+      // Call the edge function
+      const response = await supabase.functions.invoke(
         'fetch-azure-resource-counts',
         {
-          body: {
-            credentials: connectionData.credentials
-          },
-          headers: {
-            "Content-Type": "application/json"
-          }
+          body: connectionData.credentials
         }
       );
 
-      console.log("Response from edge function:", resourceData, resourceError);
+      console.log("Edge function response:", response);
 
-      if (resourceError) {
-        console.error("Error fetching Azure resources:", resourceError);
-        throw resourceError;
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to fetch Azure resources");
       }
 
-      if (!resourceData || !Array.isArray(resourceData)) {
-        console.error("Invalid resource data received:", resourceData);
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error("Invalid resource data received:", response.data);
         throw new Error("Invalid resource data received");
       }
 
-      setResources(resourceData);
+      setResources(response.data);
       setIsConnected(true);
     } catch (error) {
       console.error("Error fetching Azure resources:", error);
