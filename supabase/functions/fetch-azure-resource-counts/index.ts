@@ -14,12 +14,15 @@ serve(async (req) => {
 
   try {
     console.log("Receiving request to fetch Azure resources...");
-    const { credentials } = await req.json();
-
-    if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
-      console.error("Missing required Azure credentials");
+    
+    // Add error handling for JSON parsing
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Error parsing request JSON:", e);
       return new Response(
-        JSON.stringify({ error: "Missing required Azure credentials" }),
+        JSON.stringify({ error: "Invalid JSON in request body" }),
         { 
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -27,7 +30,23 @@ serve(async (req) => {
       );
     }
 
-    // For now, return mock data to test the frontend integration
+    const { credentials } = body;
+
+    if (!credentials || !credentials.clientId || !credentials.clientSecret || !credentials.tenantId || !credentials.subscriptionId) {
+      console.error("Missing required Azure credentials");
+      return new Response(
+        JSON.stringify({ 
+          error: "Missing required Azure credentials",
+          receivedCredentials: credentials ? Object.keys(credentials) : null
+        }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        }
+      );
+    }
+
+    console.log("Credentials validated, returning mock data for testing");
     const mockResourceData = [
       {
         resource_type: "Virtual Machines",
@@ -49,7 +68,6 @@ serve(async (req) => {
       }
     ];
 
-    console.log("Returning mock data for testing");
     return new Response(
       JSON.stringify(mockResourceData),
       { 
@@ -61,7 +79,10 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in fetch-azure-resource-counts:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        stack: error.stack
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
